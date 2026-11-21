@@ -50,6 +50,8 @@ import androidx.compose.material.icons.outlined.ExpandLess
 import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.Language
+import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Share
@@ -308,6 +310,7 @@ private fun Messages(vm: AppViewModel) {
                     model = vm.settings.selectedModel,
                     provider = vm.settings.provider()?.name,
                     tools = vm.liveTools.toList(),
+                    sources = vm.liveSources.toList(),
                 ),
                 streaming = true,
             )
@@ -388,6 +391,7 @@ private fun AssistantMessage(m: ChatMessage, streaming: Boolean = false, isLast:
                 }
             }
         }
+        if (m.sources.isNotEmpty()) SourcesCard(m.sources, streaming)
         if (m.text.isNotBlank()) {
             SelectionContainer(Modifier.padding(top = 8.dp, start = 4.dp)) {
                 MarkdownText(m.text)
@@ -686,4 +690,56 @@ fun openClaudeCode(ctx: android.content.Context) {
     val app = ctx.packageManager.getLaunchIntentForPackage("com.anthropic.claude")
     if (app != null) runCatching { ctx.startActivity(app) }.onSuccess { return }
     openUrl(ctx, "https://claude.ai/code")
+}
+
+@Composable
+private fun SourcesCard(sources: List<com.ultracode.app.data.WebSource>, streaming: Boolean) {
+    val ctx = LocalContext.current
+    var open by rememberSaveable { mutableStateOf(false) }
+    val pages = sources.filter { !it.search }
+    Surface(
+        onClick = { open = !open },
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.6f),
+        modifier = Modifier.padding(top = 8.dp),
+    ) {
+        Column(Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Outlined.Language, null, Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
+                Spacer(Modifier.size(6.dp))
+                Text(
+                    if (streaming) "Смотрит: ${sources.last().url.substringAfter("://").substringBefore('/')}"
+                    else "Сайты: ${pages.size}" + if (sources.size > pages.size) " · поисков: ${sources.size - pages.size}" else "",
+                    style = MaterialTheme.typography.labelLarge,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false),
+                )
+                Icon(if (open) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore, null, Modifier.size(18.dp))
+            }
+            AnimatedVisibility(open) {
+                Column(Modifier.padding(top = 6.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    sources.forEach { src ->
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .clickable { openUrl(ctx, src.url) }
+                                .padding(vertical = 6.dp, horizontal = 4.dp),
+                        ) {
+                            CookieBadge(size = 26.dp, lobes = 6, container = MaterialTheme.colorScheme.surfaceContainerHighest) {
+                                Icon(if (src.search) Icons.Outlined.Search else Icons.Outlined.Language, null, Modifier.size(14.dp))
+                            }
+                            Spacer(Modifier.size(8.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text(src.title, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Text(src.url, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary,
+                                    maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
 }

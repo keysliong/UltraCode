@@ -54,6 +54,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     var running by mutableStateOf(false); private set
     var streamingText by mutableStateOf(""); private set
     val liveTools = mutableStateListOf<String>()
+    val liveSources = mutableStateListOf<com.ultracode.app.data.WebSource>()
     var pending by mutableStateOf<PendingQuestion?>(null); private set
     val attachments = mutableStateListOf<String>()
     var toast by mutableStateOf<String?>(null)
@@ -268,6 +269,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             running = true
             streamingText = ""
             liveTools.clear()
+            liveSources.clear()
             val sb = StringBuilder()
             var failed = false
             try {
@@ -275,8 +277,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 val convo = withContext(Dispatchers.IO) { history(chat) }.toMutableList()
                 val ws = workspace()
                 val gh = settings.githubToken.takeIf { it.isNotBlank() }?.let { GitHub(it) }
-                val box = ToolBox(ws, gh, chat.repo, ::ask)
-                val tools = if (chat.agent) box.specs else emptyList()
+                val web = if (settings.webAccess) com.ultracode.app.agent.WebTools { src ->
+                    viewModelScope.launch { if (liveSources.none { it.url == src.url }) liveSources += src }
+                } else null
+                val box = ToolBox(ws, gh, chat.repo, ::ask, web)
+                var tools = if (chat.agent) box.specs else box.webSpecs
                 val system = buildString {
                     append(if (chat.agent) Prompts.agent else Prompts.chat)
                     if (chat.agent) {
@@ -289,11 +294,19 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 var steps = 0
                 while (true) {
                     if (sb.isNotEmpty() && !sb.endsWith("\n\n")) { sb.append("\n\n"); streamingText = sb.toString() }
-                    val res = LlmClient.complete(p, model, system, convo, tools) { d ->
-                        sb.append(d); streamingText = sb.toString()
+                    val onDelta: (String) -> Unit = { d -> sb.append(d); streamingText = sb.toString() }
+                    val res = try {
+                        LlmClient.complete(p, model, system, convo, tools, onDelta)
+                    } catch (e: com.ultracode.app.ai.ApiException) {
+                        // Model without tool support: answer without tools.
+                        if (tools.isNotEmpty() && sb.isEmpty() && (e.message ?: "").contains("tool", ignoreCase = true)) {
+                            tools = emptyList()
+                            if (chat.agent) toast = "Модель $model не поддерживает инструменты — агент и интернет выключены"
+                            LlmClient.complete(p, model, system, convo, tools, onDelta)
+                        } else throw e
                     }
                     convo += WireMessage("assistant", listOf(Part.Text(res.text)), toolCalls = res.toolCalls)
-                    if (res.toolCalls.isEmpty() || !chat.agent) break
+                    if (res.toolCalls.isEmpty() || tools.isEmpty()) break
                     if (++steps > settings.maxSteps) {
                         sb.append("\n\n⏸️ Достигнут лимит шагов (${settings.maxSteps}). Напишите «продолжай», чтобы агент продолжил.")
                         break
@@ -316,7 +329,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                     if (c != null) {
                         val m = ChatMessage(
                             role = "assistant", text = sb.toString().trim().ifEmpty { "(пустой ответ)" },
-                            model = model, provider = p.name, tools = liveTools.toList(), error = failed,
+                            model = model, provider = p.name, tools = liveTools.toList(), sources = liveSources.toList(), error = failed,
                         )
                         save(c.copy(messages = c.messages + m, updated = System.currentTimeMillis()))
                         if (!appVisible && !failed) Notifier.done(ctx, model, m.text)
@@ -324,6 +337,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                     running = false
                     streamingText = ""
                     liveTools.clear()
+                    liveSources.clear()
                 }
             }
         }

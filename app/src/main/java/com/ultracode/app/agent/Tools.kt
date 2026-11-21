@@ -19,6 +19,7 @@ class ToolBox(
     private val gh: GitHub?,
     private val defaultRepo: String?,
     private val askUser: suspend (String, List<String>) -> String,
+    private val web: WebTools? = null,
 ) {
     private val json = Storage.json
 
@@ -27,7 +28,16 @@ class ToolBox(
 
     private val str = """{"type":"string"}"""
 
+    /** Only internet tools — for plain chat mode. */
+    val webSpecs: List<ToolSpec> get() = specs.filter { it.name.startsWith("web_") }
+
     val specs: List<ToolSpec> = buildList {
+        if (web != null) {
+            add(spec("web_search", "Искать в интернете (DuckDuckGo). Возвращает заголовки, ссылки и описания. Пользователь видит, какие сайты ты смотришь.",
+                """{"type":"object","properties":{"query":{"type":"string","description":"Поисковый запрос"}},"required":["query"]}"""))
+            add(spec("web_fetch", "Открыть веб-страницу и прочитать её текст (документация, статьи, GitHub и т.д.).",
+                """{"type":"object","properties":{"url":{"type":"string"}},"required":["url"]}"""))
+        }
         add(spec("list_files", "Показать файлы и папки в рабочей папке. Папки оканчиваются на '/'.",
             """{"type":"object","properties":{"path":{"type":"string","description":"Путь относительно рабочей папки, '' = корень"}}}"""))
         add(spec("read_file", "Прочитать текстовый файл из рабочей папки.",
@@ -63,8 +73,10 @@ class ToolBox(
 
     fun label(name: String, args: String): String {
         val a = runCatching { json.parseToJsonElement(args.ifBlank { "{}" }).jsonObject }.getOrNull()
-        val detail = a?.let { it["path"].str() ?: it["repo"].str() ?: it["name"].str() ?: it["question"].str() } ?: ""
+        val detail = a?.let { it["url"].str() ?: it["query"].str() ?: it["path"].str() ?: it["repo"].str() ?: it["name"].str() ?: it["question"].str() } ?: ""
         val icon = when {
+            name == "web_search" -> "🔎"
+            name == "web_fetch" -> "🌐"
             name == "write_file" -> "✏️"
             name == "read_file" || name == "github_read_file" -> "📖"
             name.startsWith("list") || name == "github_list_files" -> "📂"
@@ -87,6 +99,8 @@ class ToolBox(
             fun repo() = s("repo") ?: defaultRepo ?: throw IllegalArgumentException("Не указан repo")
             val g = { gh ?: throw IllegalStateException("GitHub не подключён. Попроси пользователя добавить токен в настройках.") }
             val out = when (name) {
+                "web_search" -> (web ?: error("Интернет выключен")).search(req("query"))
+                "web_fetch" -> (web ?: error("Интернет выключен")).fetch(req("url"))
                 "list_files" -> ws.list(s("path") ?: "").joinToString("\n").ifEmpty { "(пусто)" }
                 "read_file" -> ws.read(req("path")) ?: "Файл не найден"
                 "write_file" -> { val c = req("content"); ws.write(req("path"), c); "Записано ${c.length} символов в ${s("path")}" }
@@ -149,6 +163,7 @@ object Prompts {
     val chat = """
         Ты — UltraCode, дружелюбный ИИ-помощник программиста в мобильном приложении.
         Отвечай на языке пользователя. Код оформляй в блоках ```язык ... ```.
+        Если нужна свежая информация или документация — используй web_search и web_fetch.
         Помогай писать приложения для телефона (Android), ПК (Windows, macOS, Linux), сайты, игры и ботов.
     """.trimIndent()
 
@@ -169,6 +184,7 @@ object Prompts {
         4. Проверь сборку github_actions_status; если упала — github_job_log, исправь файлы и отправь снова.
         5. В конце дай ссылку на релиз (github_latest_release) и кратко объясни, что сделано.
 
+        Если нужна документация, свежие версии библиотек или решение ошибки — ищи в интернете (web_search, web_fetch).
         Если что-то неясно или есть важный выбор (название, дизайн, платформа) — спроси через ask_user, не гадай.
         Действуй по шагам, не останавливайся на полпути, пока задача не решена.
     """.trimIndent()

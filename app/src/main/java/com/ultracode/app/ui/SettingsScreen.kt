@@ -199,6 +199,9 @@ fun SettingsScreen(vm: AppViewModel, onBack: () -> Unit) {
                     TextButton(onClick = { folderPicker.launch(null) }) { Text("Выбрать") }
                     if (s.workspaceUri != null) TextButton(onClick = { vm.setWorkspace(null) }) { Text("Сброс") }
                 }
+                SwitchRow("Доступ в интернет", "ИИ может искать и читать сайты — вы видите, какие", s.webAccess) { v ->
+                    vm.updateSettings { it.copy(webAccess = v) }
+                }
                 SwitchRow("Уведомления «Агент хочет спросить»", "Когда ИИ нужен ваш ответ", s.notifyQuestions) { v ->
                     vm.updateSettings { it.copy(notifyQuestions = v) }
                 }

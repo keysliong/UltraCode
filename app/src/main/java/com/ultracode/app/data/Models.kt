@@ -21,6 +21,9 @@ data class ProviderConfig(
 )
 
 @Serializable
+data class WebSource(val title: String, val url: String, val search: Boolean = false)
+
+@Serializable
 data class ChatMessage(
     val id: String = UUID.randomUUID().toString(),
     val role: String, // "user" | "assistant"
@@ -29,6 +32,7 @@ data class ChatMessage(
     val model: String? = null,
     val provider: String? = null,
     val tools: List<String> = emptyList(),
+    val sources: List<WebSource> = emptyList(),
     val error: Boolean = false,
     val time: Long = System.currentTimeMillis(),
 )
@@ -58,6 +62,7 @@ data class AppSettings(
     val workspaceName: String? = null,
     val maxSteps: Int = 30,
     val notifyQuestions: Boolean = true,
+    val webAccess: Boolean = true,
 ) {
     fun provider(id: String = selectedProvider) = providers.firstOrNull { it.id == id }
 }
