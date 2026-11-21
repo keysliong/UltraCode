@@ -626,7 +626,7 @@ private fun ModelPicker(vm: AppViewModel, onDismiss: () -> Unit, onSettings: () 
                         }
                     }
                 }
-                items(p.models, key = { p.id + "/" + it }) { m ->
+                items(p.models.distinct(), key = { p.id + "/" + it }) { m ->
                     val selected = vm.settings.selectedProvider == p.id && vm.settings.selectedModel == m
                     ListItem(
                         headlineContent = { Text(shortModel(m), maxLines = 1, overflow = TextOverflow.Ellipsis) },
