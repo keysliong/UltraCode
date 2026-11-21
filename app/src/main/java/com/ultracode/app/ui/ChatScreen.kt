@@ -621,10 +621,39 @@ private fun HistoryDrawer(
 private fun ModelPicker(vm: AppViewModel, onDismiss: () -> Unit, onSettings: () -> Unit) {
     val sheet = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var custom by remember { mutableStateOf("") }
+    var target by remember { mutableStateOf(vm.settings.selectedProvider) }
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheet) {
-        LazyColumn(contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 32.dp)) {
+        LazyColumn(
+            modifier = Modifier.imePadding(),
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 32.dp),
+        ) {
             item {
                 Text("Выбор модели", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp))
+            }
+            item {
+                // Own model: typed or pasted id. At the top so the keyboard never covers it.
+                Column(Modifier.padding(horizontal = 24.dp, vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Своя модель", style = MaterialTheme.typography.titleSmall)
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        items(vm.settings.providers, key = { "t_" + it.id }) { p ->
+                            FilterChip(
+                                selected = target == p.id, onClick = { target = p.id },
+                                label = { Text(p.name, maxLines = 1) }, shape = RoundedCornerShape(12.dp),
+                            )
+                        }
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        OutlinedTextField(
+                            value = custom, onValueChange = { custom = it },
+                            placeholder = { Text(if (target == com.ultracode.app.data.Defaults.ANTHROPIC) "claude-…" else "провайдер/модель") },
+                            singleLine = true, modifier = Modifier.weight(1f), shape = RoundedCornerShape(20.dp),
+                        )
+                        Spacer(Modifier.size(8.dp))
+                        CookieButton(onClick = {
+                            if (custom.isNotBlank()) { vm.addModel(target, custom); custom = ""; onDismiss() }
+                        }, size = 48.dp, container = MaterialTheme.colorScheme.primary) { Icon(Icons.Filled.Add, "Добавить и выбрать") }
+                    }
+                }
             }
             vm.settings.providers.forEach { p ->
                 item(key = "h_" + p.id) {
@@ -673,20 +702,8 @@ private fun ModelPicker(vm: AppViewModel, onDismiss: () -> Unit, onSettings: () 
                 }
             }
             item {
-                Column(Modifier.padding(horizontal = 24.dp, vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Другая модель для «${vm.settings.provider()?.name}»", style = MaterialTheme.typography.titleSmall)
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        OutlinedTextField(
-                            value = custom, onValueChange = { custom = it },
-                            placeholder = { Text("например deepseek/deepseek-r1:free") },
-                            singleLine = true, modifier = Modifier.weight(1f), shape = RoundedCornerShape(20.dp),
-                        )
-                        Spacer(Modifier.size(8.dp))
-                        CookieButton(onClick = {
-                            if (custom.isNotBlank()) { vm.selectModel(vm.settings.selectedProvider, custom.trim()); onDismiss() }
-                        }, size = 48.dp) { Icon(Icons.Filled.Add, "Выбрать") }
-                    }
-                    TextButton(onClick = onSettings) { Text("Подключить свою нейросеть…") }
+                TextButton(onClick = onSettings, modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
+                    Text("Подключить свою нейросеть…")
                 }
             }
         }

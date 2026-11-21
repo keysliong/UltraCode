@@ -132,6 +132,7 @@ fun SettingsScreen(vm: AppViewModel, onBack: () -> Unit, onClaude: () -> Unit = 
                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 KeyField("API-ключ Claude (sk-ant-…)", claude.apiKey) { vm.updateProvider(claude.copy(apiKey = it)) }
+                AddModelRow("Добавить модель Claude", "например claude-opus-5-5") { vm.addModel(claude.id, it) }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     TextButton(onClick = { openUrl(ctx, claude.keyUrl) }) { Text("Войти и получить ключ") }
                     if (claude.apiKey.isNotBlank()) TextButton(onClick = { vm.refreshModels(claude) }) { Text("Обновить модели") }
@@ -146,6 +147,7 @@ fun SettingsScreen(vm: AppViewModel, onBack: () -> Unit, onClaude: () -> Unit = 
                     style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 KeyField("Ключ OpenRouter (sk-or-…)", free.apiKey) { vm.updateProvider(free.copy(apiKey = it)) }
+                AddModelRow("Добавить модель OpenRouter", "например deepseek/deepseek-r1:free") { vm.addModel(free.id, it) }
                 SwitchRow("Автозамена занятой модели", "Если модель перегружена (ошибка 429) — ответит другая бесплатная", s.autoFallback) { v ->
                     vm.updateSettings { it.copy(autoFallback = v) }
                 }
@@ -336,4 +338,20 @@ private fun ProviderDialog(initial: ProviderConfig, onDismiss: () -> Unit, onSav
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Отмена") } },
     )
+}
+
+@Composable
+private fun AddModelRow(label: String, hint: String, onAdd: (String) -> Unit) {
+    var text by remember { mutableStateOf("") }
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        OutlinedTextField(
+            value = text, onValueChange = { text = it },
+            label = { Text(label) }, placeholder = { Text(hint) },
+            singleLine = true, modifier = Modifier.weight(1f), shape = RoundedCornerShape(20.dp),
+        )
+        Spacer(Modifier.size(8.dp))
+        CookieButton(onClick = { if (text.isNotBlank()) { onAdd(text); text = "" } }, size = 48.dp, container = MaterialTheme.colorScheme.primary) {
+            Icon(Icons.Filled.Add, "Добавить")
+        }
+    }
 }

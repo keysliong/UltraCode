@@ -186,8 +186,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 if (free.isEmpty()) { if (!silent) toast = "OpenRouter не вернул бесплатных моделей"; return@launch }
                 val p = settings.provider(Defaults.OPENROUTER) ?: return@launch
                 val ids = free.map { it.id }
-                val removed = p.models.filter { it !in ids }
-                updateProvider(p.copy(models = ids, toolModels = free.filter { it.tools }.map { it.id }, verifiedAt = System.currentTimeMillis()))
+                val removed = p.models.filter { it !in ids && it.endsWith(":free") }
+                val custom = p.models.filter { !it.endsWith(":free") }
+                updateProvider(p.copy(models = custom + ids, toolModels = free.filter { it.tools }.map { it.id }, verifiedAt = System.currentTimeMillis()))
                 if (settings.selectedProvider == Defaults.OPENROUTER && settings.selectedModel !in ids) {
                     val next = preferredFallbacks.firstOrNull { it in ids } ?: ids.first()
                     toast = "${shortName(settings.selectedModel)} больше не бесплатная — выбрана ${shortName(next)}"
@@ -226,6 +227,17 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val list = s.providers.filterNot { it.id == id && !it.builtin }
         if (s.selectedProvider == id) s.copy(providers = list, selectedProvider = Defaults.OPENROUTER, selectedModel = Defaults.freeModels.first())
         else s.copy(providers = list)
+    }
+
+    /** Adds a model (typed or pasted) to a provider's list and selects it. */
+    fun addModel(providerId: String, model: String) {
+        val m = model.trim().removePrefix("\"").removeSuffix("\"")
+        if (m.isEmpty()) return
+        val p = settings.provider(providerId) ?: return
+        if (m !in p.models) updateProvider(p.copy(models = listOf(m) + p.models))
+        selectModel(providerId, m)
+        toast = "Модель ${shortName(m)} добавлена" +
+            if (providerId == Defaults.OPENROUTER && !m.endsWith(":free")) " (платная, без :free)" else ""
     }
 
     fun selectModel(providerId: String, model: String) =
@@ -406,8 +418,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             return
         }
         if (p.id == Defaults.OPENROUTER && !settings.selectedModel.endsWith(":free")) {
-            toast = "«${settings.selectedModel}» — платная модель. Выберите модель с пометкой free"
-            return
+            toast = "Внимание: «${shortName(settings.selectedModel)}» платная — нужен баланс на OpenRouter"
         }
         var chat = current ?: newChat()
         val msg = ChatMessage(role = "user", text = text.trim(), images = attachments.toList())
