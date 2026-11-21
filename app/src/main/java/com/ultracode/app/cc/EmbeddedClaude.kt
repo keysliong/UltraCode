@@ -13,6 +13,7 @@ import com.ultracode.app.data.WebSource
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -140,25 +141,22 @@ class EmbeddedClaude(private val ctx: Context) {
                 Storage.json.parseToJsonElement(it.body!!.string()).jsonObject
             }
             val url = meta["dist"]?.jsonObject?.get("tarball").str() ?: throw ApiException(0, "Не найден файл Claude Code в npm")
+            val mirrorUrl = url.replace("https://registry.npmjs.org/", "https://registry.npmmirror.com/")
+            val tgz = File(base, "claude-code.tgz")
             val tmp = File(claudeBin.parentFile, "claude.part")
             claudeBin.parentFile?.mkdirs()
-            LlmClient.http.newCall(Request.Builder().url(url).build()).execute().use { r ->
-                if (!r.isSuccessful) throw ApiException(r.code, "Не удалось скачать Claude Code (HTTP ${r.code})")
-                val total = r.body!!.contentLength().takeIf { it > 0 } ?: 168_000_000L
-                var read = 0L
-                var lastPct = -1
-                val counting = object : FilterInputStream(r.body!!.byteStream()) {
-                    override fun read(b: ByteArray, off: Int, len: Int): Int {
-                        val n = super.read(b, off, len)
-                        if (n > 0) {
-                            read += n
-                            val pct = (read * 100 / total).toInt()
-                            if (pct != lastPct) { lastPct = pct; progress("Скачиваю Claude Code: $pct%", read.toFloat() / total) }
-                        }
-                        return n
-                    }
-                }
-                Tar.extract(GZIPInputStream(counting, 1 shl 16), root, only = "package/claude", onlyTarget = tmp)
+            try {
+                download(url, tgz, progress)
+            } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                progress("Основной сервер npm недоступен, пробую зеркало…", null)
+                download(mirrorUrl, tgz, progress)
+            }
+            progress("Распаковываю Claude Code…", null)
+            try {
+                tgz.inputStream().buffered(1 shl 16).use { Tar.extract(GZIPInputStream(it, 1 shl 16), root, only = "package/claude", onlyTarget = tmp) }
+            } finally {
+                tgz.delete() // a broken archive must not block the next attempt
             }
             if (!tmp.exists() || tmp.length() < 1_000_000) throw ApiException(0, "Файл Claude Code не найден в архиве")
             Os.chmod(tmp.absolutePath, 0x1ed)
@@ -167,6 +165,63 @@ class EmbeddedClaude(private val ctx: Context) {
         progress("Проверяю Claude Code…", null)
         val v = version() ?: throw ApiException(0, "Claude Code установлен, но не запускается. Пришлите скриншот разработчику.")
         progress("Готово: $v", 1f)
+    }
+
+    /** HTTP/1.1 only: long HTTP/2 downloads from the npm CDN get "stream was reset" on some networks. */
+    private val dl = okhttp3.OkHttpClient.Builder()
+        .protocols(listOf(okhttp3.Protocol.HTTP_1_1))
+        .connectTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+        .readTimeout(90, java.util.concurrent.TimeUnit.SECONDS)
+        .retryOnConnectionFailure(true)
+        .build()
+
+    /** Resumable download: continues from where it stopped after a dropped connection. */
+    private suspend fun download(url: String, dest: File, progress: (String, Float?) -> Unit) = withContext(Dispatchers.IO) {
+        var lastError: Exception? = null
+        var total = -1L
+        repeat(8) { attempt ->
+            ensureActive()
+            val have = if (dest.exists()) dest.length() else 0L
+            if (total > 0 && have >= total) return@withContext
+            try {
+                val req = Request.Builder().url(url).apply { if (have > 0) header("Range", "bytes=$have-") }.build()
+                dl.newCall(req).execute().use { r ->
+                    if (r.code == 416 && have > 0) return@withContext // already complete
+                    if (!r.isSuccessful) throw ApiException(r.code, "HTTP ${r.code}")
+                    val append = r.code == 206
+                    val len = r.body!!.contentLength()
+                    val start = if (append) have else 0L
+                    if (len > 0) total = start + len
+                    var done = start
+                    var lastPct = -1
+                    java.io.FileOutputStream(dest, append).use { out ->
+                        val src = r.body!!.byteStream()
+                        val buf = ByteArray(1 shl 16)
+                        while (true) {
+                            val n = src.read(buf)
+                            if (n < 0) break
+                            out.write(buf, 0, n)
+                            done += n
+                            val t = if (total > 0) total else 168_000_000L
+                            val pct = (done * 100 / t).toInt()
+                            if (pct != lastPct) {
+                                lastPct = pct
+                                progress("Скачиваю Claude Code: $pct%" + if (attempt > 0) " (повтор ${attempt})" else "", done.toFloat() / t)
+                            }
+                        }
+                    }
+                    if (total <= 0 || done >= total) return@withContext
+                    throw java.io.IOException("Соединение оборвалось")
+                }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                lastError = e
+                progress("Связь прервалась, продолжаю загрузку…", null)
+                kotlinx.coroutines.delay(2000L * (attempt + 1))
+            }
+        }
+        throw ApiException(0, "Не удалось скачать Claude Code: ${lastError?.message}")
     }
 
     suspend fun version(): String? = runCatching {
