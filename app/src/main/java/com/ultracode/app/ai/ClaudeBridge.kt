@@ -174,8 +174,9 @@ object ClaudeBridge {
             "pkg update -y && pkg install -y proot-distro",
             "(proot-distro install debian || true)",
             "proot-distro login debian -- bash -c 'apt-get update && apt-get install -y nodejs curl git ca-certificates && (test -x /root/.local/bin/claude || curl -fsSL https://claude.ai/install.sh | bash)'",
-            "R=${d}PREFIX/var/lib/proot-distro/installed-rootfs/debian/root",
-            "echo '$b64' | base64 -d > ${d}R/ultracode-bridge.js",
+            // Write the bridge from inside Debian: the rootfs path differs between proot-distro versions.
+            "echo '$b64' | proot-distro login debian -- sh -c 'base64 -d > /root/ultracode-bridge.js'",
+            "proot-distro login debian -- test -s /root/ultracode-bridge.js",
             "printf '#!/data/data/com.termux/files/usr/bin/sh\\nproot-distro login debian -- /root/.local/bin/claude \"${d}@\"\\n' > ${d}PREFIX/bin/uc-login",
             "printf '#!/data/data/com.termux/files/usr/bin/sh\\ntermux-wake-lock 2>/dev/null\\nproot-distro login debian -- env CLAUDE_BIN=/root/.local/bin/claude node /root/ultracode-bridge.js --token $token \"${d}@\"\\n' > ${d}PREFIX/bin/uc-bridge",
             "chmod +x ${d}PREFIX/bin/uc-login ${d}PREFIX/bin/uc-bridge",
