@@ -20,6 +20,10 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.material.icons.automirrored.outlined.Login
+import androidx.compose.material.icons.outlined.Download
+import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.outlined.AutoAwesome
@@ -366,14 +370,23 @@ private fun ClaudeCodeSection(vm: AppViewModel, cc: ProviderConfig) {
     val ctx = LocalContext.current
     val clip = androidx.compose.ui.platform.LocalClipboardManager.current
     val s = vm.settings
-    var pc by remember { mutableStateOf(!cc.baseUrl.contains("127.0.0.1")) }
+    var mode by remember {
+        mutableIntStateOf(when { cc.baseUrl == Defaults.EMBEDDED -> 0; cc.baseUrl.contains("127.0.0.1") -> 1; else -> 2 })
+    }
+    LaunchedEffect(Unit) { vm.refreshEmbedded() }
     Section(Icons.Outlined.Terminal, "Claude Code по подписке") {
         Text(
             "Модели Claude по подписке Pro/Max прямо в чате UltraCode. Работает официальный Claude Code: " +
                 "вы входите в свой аккаунт в нём самом, UltraCode ваш вход не видит, а только передаёт задачи и показывает ответы.",
             style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+            SegmentedButton(mode == 0, { mode = 0; vm.updateProvider(cc.copy(baseUrl = Defaults.EMBEDDED)) }, SegmentedButtonDefaults.itemShape(0, 3)) { Text("В приложении") }
+            SegmentedButton(mode == 1, { mode = 1; vm.updateProvider(cc.copy(baseUrl = "http://127.0.0.1:8765")) }, SegmentedButtonDefaults.itemShape(1, 3)) { Text("Termux") }
+            SegmentedButton(mode == 2, { mode = 2; if (cc.baseUrl == Defaults.EMBEDDED || cc.baseUrl.contains("127.0.0.1")) vm.updateProvider(cc.copy(baseUrl = "http://192.168.0.2:8765")) }, SegmentedButtonDefaults.itemShape(2, 3)) { Text("ПК") }
+        }
+        if (mode == 0) EmbeddedPanel(vm)
+        if (mode != 0) Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
                 vm.bridgeStatus ?: "Статус не проверен",
                 style = MaterialTheme.typography.bodySmall,
@@ -382,11 +395,7 @@ private fun ClaudeCodeSection(vm: AppViewModel, cc: ProviderConfig) {
             )
             TextButton(onClick = { vm.checkBridge() }) { Text("Проверить") }
         }
-        SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
-            SegmentedButton(!pc, { pc = false; vm.updateProvider(cc.copy(baseUrl = "http://127.0.0.1:8765")) }, SegmentedButtonDefaults.itemShape(0, 2)) { Text("На телефоне") }
-            SegmentedButton(pc, { pc = true }, SegmentedButtonDefaults.itemShape(1, 2)) { Text("На компьютере") }
-        }
-        if (!pc) {
+        if (mode == 1) {
             Step("1", "Установите Termux из F-Droid (версия из Google Play устарела).")
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(onClick = { openUrl(ctx, "https://f-droid.org/packages/com.termux/") }) { Text("Скачать Termux") }
@@ -405,7 +414,7 @@ private fun ClaudeCodeSection(vm: AppViewModel, cc: ProviderConfig) {
             Step("3", "В Termux выполните uc-login и войдите в аккаунт Claude (откроется страница claude.ai — скопируйте код и вставьте в Termux).")
             Step("4", "Выполните uc-bridge — мост запущен. Не закрывайте Termux (можно свернуть).")
             Step("5", "В UltraCode выберите модель «Claude Code (подписка)» и пишите как обычно.")
-        } else {
+        } else if (mode == 2) {
             Step("1", "На компьютере нужен Node.js (nodejs.org). Скопируйте команду и выполните её в терминале (macOS, Linux, WSL или Git Bash).")
             Button(onClick = {
                 clip.setText(androidx.compose.ui.text.AnnotatedString(com.ultracode.app.ai.ClaudeBridge.pcInstallCommand(vm.bridgeScript(), cc.apiKey)))
@@ -439,5 +448,89 @@ private fun Step(n: String, text: String) {
         }
         Spacer(Modifier.size(10.dp))
         Text(text, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+    }
+}
+
+@Composable
+private fun EmbeddedPanel(vm: AppViewModel) {
+    val ctx = LocalContext.current
+    if (!vm.embedded.supported) {
+        Text("На этом телефоне встроенный режим недоступен (нужен 64-битный процессор arm64). Используйте Termux или ПК.",
+            style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
+        return
+    }
+    Text(
+        "Официальный Claude Code скачивается прямо в UltraCode (около 170 МБ) и работает внутри приложения — без Termux и компьютера.",
+        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+    if (vm.ccLoggedIn) {
+        androidx.compose.material3.Surface(
+            shape = RoundedCornerShape(20.dp),
+            color = MaterialTheme.colorScheme.secondaryContainer,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Row(Modifier.padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Outlined.CheckCircle, null, tint = MaterialTheme.colorScheme.primary)
+                Spacer(Modifier.size(10.dp))
+                Text("Подключён", style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
+                TextButton(onClick = { vm.logoutEmbedded() }) { Text("Отключить") }
+            }
+        }
+    }
+    if (vm.ccInstalled) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("Claude Code ${vm.ccVersion ?: ""}".trim(), style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
+            TextButton(onClick = { vm.removeEmbedded() }, enabled = !vm.ccBusy) { Text("Удалить") }
+        }
+    }
+    vm.ccProgress?.let { text ->
+        if (vm.ccBusy) {
+            val v = vm.ccProgressValue
+            if (v != null) androidx.compose.material3.LinearProgressIndicator(progress = { v }, modifier = Modifier.fillMaxWidth())
+            else androidx.compose.material3.LinearProgressIndicator(Modifier.fillMaxWidth())
+        }
+        Text(text, style = MaterialTheme.typography.bodySmall,
+            color = if (text.startsWith("Ошибка")) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (!vm.ccInstalled) {
+            Button(onClick = { vm.installEmbedded() }, enabled = !vm.ccBusy) {
+                Icon(Icons.Outlined.Download, null, Modifier.size(18.dp)); Spacer(Modifier.size(6.dp))
+                Text(if (vm.ccBusy) "Устанавливаю…" else "Скачать Claude Code")
+            }
+        } else if (!vm.ccLoggedIn) {
+            Button(onClick = { vm.loginEmbedded { url -> openUrl(ctx, url) } }, enabled = !vm.ccBusy) {
+                Icon(Icons.AutoMirrored.Outlined.Login, null, Modifier.size(18.dp)); Spacer(Modifier.size(6.dp))
+                Text("Войти в Claude")
+            }
+        }
+    }
+    if (vm.ccLoggedIn) Text("Выберите модель «Claude Code (подписка)» вверху чата и пишите как обычно.",
+        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+
+    vm.ccLoginStatus?.let { status ->
+        var code by remember { mutableStateOf("") }
+        AlertDialog(
+            onDismissRequest = {},
+            shape = RoundedCornerShape(32.dp),
+            title = { Text("Вход в Claude") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(status, style = MaterialTheme.typography.bodyMedium)
+                    vm.ccLoginUrl?.let { url ->
+                        TextButton(onClick = { openUrl(ctx, url) }) { Text("Открыть страницу ещё раз") }
+                        OutlinedTextField(
+                            value = code, onValueChange = { code = it }, label = { Text("Код") },
+                            singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp),
+                        )
+                    }
+                    if (vm.ccBusy && vm.ccLoginUrl == null) androidx.compose.material3.LinearProgressIndicator(Modifier.fillMaxWidth())
+                }
+            },
+            confirmButton = {
+                TextButton(enabled = vm.ccLoginUrl != null && code.isNotBlank() && vm.ccBusy, onClick = { vm.submitLoginCode(code) }) { Text("Готово") }
+            },
+            dismissButton = { TextButton(onClick = { vm.closeLogin() }) { Text(if (vm.ccBusy) "Отмена" else "Закрыть") } },
+        )
     }
 }

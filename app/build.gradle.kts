@@ -47,6 +47,14 @@ android {
     }
     packaging {
         resources.excludes += setOf("/META-INF/{AL2.0,LGPL2.1}")
+        // proot binaries must be extracted to the native library dir, the only place Android lets apps execute files.
+        jniLibs {
+            useLegacyPackaging = true
+            keepDebugSymbols += setOf("**/libproot.so", "**/libproot-loader.so", "**/libtalloc.so")
+        }
+    }
+    androidResources {
+        noCompress += setOf("tar.gz", "gz")
     }
 }
 

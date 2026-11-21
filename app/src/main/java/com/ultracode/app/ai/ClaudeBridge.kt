@@ -99,10 +99,7 @@ object ClaudeBridge {
             .header("Accept", "text/event-stream")
             .post(body.toString().toRequestBody("application/json".toMediaType()))
             .build()
-        var sessionId: String? = session
-        var finalText: String? = null
-        var streamed = false
-        var error: String? = null
+        val parser = ClaudeStreamParser(session, onText, onTool, onSession)
         coroutineScope {
             val call = http.newCall(req)
             val watcher = launch { try { awaitCancellation() } finally { call.cancel() } }
@@ -113,42 +110,7 @@ object ClaudeBridge {
                     val src = r.body!!.source()
                     while (true) {
                         val line = src.readUtf8Line() ?: break
-                        if (!line.startsWith("data:")) continue
-                        val d = line.removePrefix("data:").trim()
-                        if (!d.startsWith("{")) continue
-                        val o = runCatching { json.parseToJsonElement(d).jsonObject }.getOrNull() ?: continue
-                        o["session_id"].str()?.let { if (it != sessionId) { sessionId = it; onSession(it) } }
-                        when (o["type"].str()) {
-                            "stream_event" -> {
-                                val ev = o["event"] as? JsonObject
-                                if (ev?.get("type").str() == "content_block_delta") {
-                                    val delta = ev?.get("delta") as? JsonObject
-                                    if (delta?.get("type").str() == "text_delta") delta?.get("text").str()?.let { streamed = true; onText(it) }
-                                }
-                            }
-                            "assistant" -> {
-                                val content = (o["message"] as? JsonObject)?.get("content") as? JsonArray
-                                content?.forEach { b ->
-                                    val bo = b as? JsonObject ?: return@forEach
-                                    when (bo["type"].str()) {
-                                        "tool_use" -> {
-                                            val (label, web) = toolLabel(bo["name"].str() ?: "tool", bo["input"] as? JsonObject)
-                                            onTool(label, web)
-                                        }
-                                        // Older CLI without partial messages: show whole text blocks.
-                                        "text" -> if (!streamed) bo["text"].str()?.let { onText(it) }
-                                    }
-                                }
-                            }
-                            "result" -> {
-                                finalText = o["result"].str()
-                                val isError = (o["is_error"] as? kotlinx.serialization.json.JsonPrimitive)?.content == "true"
-                                if (isError || o["subtype"].str()?.startsWith("error") == true) {
-                                    error = finalText ?: o["subtype"].str() ?: "Ошибка Claude Code"
-                                }
-                            }
-                            "bridge_error" -> error = o["message"].str() ?: "Ошибка моста"
-                        }
+                        if (line.startsWith("data:")) parser.line(line.removePrefix("data:"))
                     }
                 }
             } catch (e: IOException) {
@@ -157,13 +119,8 @@ object ClaudeBridge {
                 watcher.cancel()
             }
         }
-        error?.let { msg ->
-            val hint = if (msg.contains("login", true) || msg.contains("API key", true) || msg.contains("auth", true))
-                "\n\nВойдите в аккаунт Claude: в Termux выполните uc-login (на ПК — команда claude), затем снова uc-bridge."
-            else ""
-            throw ApiException(0, msg.take(1500) + hint)
-        }
-        Result(if (streamed) "" else finalText.orEmpty(), sessionId)
+        parser.failIfError("Войдите в аккаунт Claude: в Termux выполните uc-login (на ПК — команда claude), затем снова uc-bridge.")
+        parser.result()
     }
 
     /** One command for Termux: Debian (proot) + official Claude Code + the bridge + uc-login / uc-bridge commands. */

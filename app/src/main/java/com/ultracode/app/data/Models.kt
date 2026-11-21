@@ -81,6 +81,8 @@ object Defaults {
     const val ANTHROPIC = "anthropic"
     const val OPENROUTER = "openrouter"
     const val CLAUDE_CODE = "claude_code"
+    /** Claude Code runs inside UltraCode (no Termux / computer). */
+    const val EMBEDDED = "embedded"
 
     val claudeModels = listOf(
         "claude-opus-5-5",
@@ -128,7 +130,7 @@ object Defaults {
             id = CLAUDE_CODE,
             name = "Claude Code (подписка)",
             kind = ProviderKind.CLAUDE_CODE,
-            baseUrl = "http://127.0.0.1:8765",
+            baseUrl = EMBEDDED,
             models = listOf("sonnet", "opus", "haiku"),
             builtin = true,
         ),

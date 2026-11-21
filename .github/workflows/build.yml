@@ -21,6 +21,32 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
+      - name: Bundle proot + Alpine Linux (embedded Claude Code)
+        run: |
+          set -euo pipefail
+          sudo apt-get install -y -q patchelf >/dev/null
+          J=app/src/main/jniLibs/arm64-v8a
+          mkdir -p "$J" app/src/main/assets
+          BASE=https://packages.termux.dev/apt/termux-main
+          curl -fsSL "$BASE/dists/stable/main/binary-aarch64/Packages" -o Packages
+          get() { awk -v p="$1" '$1=="Package:"{f=($2==p)} f&&$1=="Filename:"{print $2; exit}' Packages; }
+          awk '$1=="Package:"&&$2=="proot"{f=1} f&&/^Depends:/{print; exit}' Packages
+          for p in proot libtalloc; do
+            curl -fsSL "$BASE/$(get $p)" -o "$p.deb"
+            mkdir -p "x_$p" && dpkg-deb -x "$p.deb" "x_$p"
+          done
+          U=data/data/com.termux/files/usr
+          cp "x_proot/$U/bin/proot" "$J/libproot.so"
+          cp "x_proot/$U/libexec/proot/loader" "$J/libproot-loader.so"
+          cp -L "x_libtalloc/$U/lib/libtalloc.so.2" "$J/libtalloc.so"
+          patchelf --replace-needed libtalloc.so.2 libtalloc.so "$J/libproot.so"
+          patchelf --remove-rpath "$J/libproot.so" || true
+          patchelf --set-soname libtalloc.so "$J/libtalloc.so"
+          readelf -d "$J/libproot.so" | grep -E 'NEEDED|RUNPATH' || true
+          curl -fsSL https://dl-cdn.alpinelinux.org/alpine/v3.20/releases/aarch64/alpine-minirootfs-3.20.3-aarch64.tar.gz \
+            -o app/src/main/assets/alpine-minirootfs.tar.gz
+          ls -la "$J" app/src/main/assets
+
       - name: Build APK
         run: |
           chmod +x gradlew

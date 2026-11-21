@@ -529,6 +529,94 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     var bridgeStatus by mutableStateOf<String?>(null); private set
 
+    // ---- Embedded Claude Code (inside the app, like MargyCode)
+    val embedded by lazy { com.ultracode.app.cc.EmbeddedClaude(ctx) }
+    var ccBusy by mutableStateOf(false); private set
+    var ccProgress by mutableStateOf<String?>(null); private set
+    var ccProgressValue by mutableStateOf<Float?>(null); private set
+    var ccInstalled by mutableStateOf(false); private set
+    var ccLoggedIn by mutableStateOf(false); private set
+    var ccVersion by mutableStateOf<String?>(null); private set
+    var ccLoginStatus by mutableStateOf<String?>(null); private set
+    var ccLoginUrl by mutableStateOf<String?>(null); private set
+    private var ccCode: CompletableDeferred<String>? = null
+    private var ccJob: Job? = null
+
+    fun refreshEmbedded() {
+        ccInstalled = embedded.installed
+        ccLoggedIn = embedded.loggedIn
+        if (ccInstalled && ccVersion == null) viewModelScope.launch { ccVersion = embedded.version() }
+    }
+
+    fun installEmbedded() {
+        if (ccBusy) return
+        ccJob = viewModelScope.launch {
+            ccBusy = true
+            try {
+                embedded.install { text, value -> ccProgress = text; ccProgressValue = value }
+                ccVersion = embedded.version()
+                toast = "Claude Code установлен"
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                ccProgress = "Ошибка: ${e.message}"
+                ccProgressValue = null
+            } finally {
+                ccBusy = false
+                refreshEmbedded()
+            }
+        }
+    }
+
+    fun loginEmbedded(open: (String) -> Unit) {
+        if (ccBusy) return
+        val code = CompletableDeferred<String>()
+        ccCode = code
+        ccLoginUrl = null
+        ccLoginStatus = "Запускаю Claude Code…"
+        ccJob = viewModelScope.launch {
+            ccBusy = true
+            try {
+                embedded.login(
+                    onUrl = { url -> ccLoginUrl = url; viewModelScope.launch { open(url) } },
+                    code = code,
+                    status = { ccLoginStatus = it },
+                )
+                ccLoginStatus = null
+                toast = "Claude подключён"
+                val p = settings.provider(Defaults.CLAUDE_CODE)
+                if (p != null) {
+                    updateProvider(p.copy(baseUrl = Defaults.EMBEDDED))
+                    selectModel(p.id, settings.selectedModel.takeIf { settings.selectedProvider == p.id } ?: "sonnet")
+                }
+            } catch (e: CancellationException) {
+                ccLoginStatus = null
+                throw e
+            } catch (e: Exception) {
+                ccLoginStatus = "Ошибка: ${e.message}"
+            } finally {
+                ccBusy = false
+                refreshEmbedded()
+            }
+        }
+    }
+
+    fun submitLoginCode(c: String) { if (c.isNotBlank()) ccCode?.complete(c.trim()) }
+
+    fun closeLogin() {
+        if (ccBusy) ccJob?.cancel()
+        ccLoginStatus = null
+        ccLoginUrl = null
+    }
+
+    fun logoutEmbedded() { embedded.logout(); refreshEmbedded() }
+
+    fun removeEmbedded() {
+        viewModelScope.launch(Dispatchers.IO) { embedded.remove() }.invokeOnCompletion {
+            viewModelScope.launch { ccVersion = null; ccProgress = null; refreshEmbedded() }
+        }
+    }
+
     fun checkBridge() {
         val p = settings.provider(Defaults.CLAUDE_CODE) ?: return
         viewModelScope.launch {
@@ -554,28 +642,33 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
         var needSep = false
         statusText = "Claude Code запускается…"
-        val res = com.ultracode.app.ai.ClaudeBridge.run(
-            url = p.baseUrl, token = p.apiKey, prompt = prompt, session = chat.ccSession, model = model,
-            folder = chat.repo?.substringAfter('/') ?: settings.ccFolder,
-            system = system, allowBash = settings.ccAllowBash,
-            onText = { d ->
-                if (needSep && sb.isNotEmpty() && !sb.endsWith("\n\n")) sb.append("\n\n")
-                needSep = false
-                sb.append(d)
-                statusText = null
-                streamingText = sb.toString()
-            },
-            onTool = { label, web ->
-                needSep = true
-                viewModelScope.launch {
-                    liveTools += label
-                    if (web != null && liveSources.none { it.url == web.url }) liveSources += web
-                }
-            },
-            onSession = { id ->
-                viewModelScope.launch { chats.firstOrNull { it.id == chat.id }?.let { save(it.copy(ccSession = id)) } }
-            },
-        )
+        val folder = chat.repo?.substringAfter('/') ?: settings.ccFolder
+        val onText: (String) -> Unit = { d ->
+            if (needSep && sb.isNotEmpty() && !sb.endsWith("\n\n")) sb.append("\n\n")
+            needSep = false
+            sb.append(d)
+            statusText = null
+            streamingText = sb.toString()
+        }
+        val onTool: (String, com.ultracode.app.data.WebSource?) -> Unit = { label, web ->
+            needSep = true
+            viewModelScope.launch {
+                liveTools += label
+                if (web != null && liveSources.none { it.url == web.url }) liveSources += web
+            }
+        }
+        val onSession: (String) -> Unit = { id ->
+            viewModelScope.launch { chats.firstOrNull { it.id == chat.id }?.let { save(it.copy(ccSession = id)) } }
+        }
+        val res = if (p.baseUrl == Defaults.EMBEDDED) {
+            embedded.run(prompt, chat.ccSession, model, folder, system, settings.ccAllowBash, onText, onTool, onSession)
+        } else {
+            com.ultracode.app.ai.ClaudeBridge.run(
+                url = p.baseUrl, token = p.apiKey, prompt = prompt, session = chat.ccSession, model = model,
+                folder = folder, system = system, allowBash = settings.ccAllowBash,
+                onText = onText, onTool = onTool, onSession = onSession,
+            )
+        }
         if (res.text.isNotBlank() && sb.isEmpty()) { sb.append(res.text); streamingText = sb.toString() }
     }
 
