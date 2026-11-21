@@ -102,7 +102,7 @@ class EmbeddedClaude(private val ctx: Context) {
      * Installs everything: Alpine base (from the APK), bash/git/ripgrep (apk), official Claude Code (npm).
      * [progress] gets a status text and an optional 0..1 value.
      */
-    suspend fun install(progress: (String, Float?) -> Unit) = withContext(Dispatchers.IO) {
+    suspend fun install(progress: (String, Float?) -> Unit, localFile: android.net.Uri? = null) = withContext(Dispatchers.IO) {
         if (!supported) throw ApiException(0, "Встроенный Claude Code работает только на 64-битных телефонах (arm64).")
         base.mkdirs()
         if (!File(root, "bin/busybox").exists()) {
@@ -139,6 +139,19 @@ class EmbeddedClaude(private val ctx: Context) {
             }
         }
 
+        if (localFile != null) {
+            // File downloaded by the user in the browser.
+            claudeBin.parentFile?.mkdirs()
+            val tmp = File(claudeBin.parentFile, "claude.part")
+            progress("Копирую файл Claude Code…", null)
+            (ctx.contentResolver.openInputStream(localFile) ?: throw ApiException(0, "Не удалось открыть файл")).use { input ->
+                tmp.outputStream().use { input.copyTo(it, 1 shl 16) }
+            }
+            if (tmp.length() < 100_000_000) { tmp.delete(); throw ApiException(0, "Это не тот файл: Claude Code весит около 365 МБ (файл «claude» без расширения).") }
+            Os.chmod(tmp.absolutePath, 0x1ed)
+            claudeBin.delete()
+            if (!tmp.renameTo(claudeBin)) throw ApiException(0, "Не удалось сохранить Claude Code")
+        }
         if (!claudeBin.exists()) {
             val free = android.os.StatFs(ctx.filesDir.absolutePath).availableBytes
             if (free < 450L * 1024 * 1024) {
@@ -146,31 +159,33 @@ class EmbeddedClaude(private val ctx: Context) {
             }
             claudeBin.parentFile?.mkdirs()
             val tmp = File(claudeBin.parentFile, "claude.part")
-            var lastErr: Exception? = null
+            val errors = mutableListOf<String>()
+            var ok = false
             // 1) Official Claude Code storage (the same place the official installer downloads from).
             try {
-                downloadOfficial(tmp, progress)
+                downloadOfficial(tmp, progress); ok = true
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (e: Exception) {
-                lastErr = e
+                errors += "официальный сервер (storage.googleapis.com): ${e.message}"
                 tmp.delete()
-                // 2) npm package (and its mirror).
-                for (registry in listOf("https://registry.npmjs.org", "https://registry.npmmirror.com")) {
-                    try {
-                        progress("Пробую другой источник: ${registry.substringAfter("//")}…", null)
-                        downloadNpm(registry, tmp, progress)
-                        lastErr = null
-                        break
-                    } catch (e2: kotlinx.coroutines.CancellationException) {
-                        throw e2
-                    } catch (e2: Exception) {
-                        lastErr = e2
-                        tmp.delete()
-                    }
+            }
+            // 2) npm package and its mirror.
+            if (!ok) for (registry in listOf("https://registry.npmjs.org", "https://registry.npmmirror.com")) {
+                try {
+                    progress("Пробую другой источник: ${registry.substringAfter("//")}…", null)
+                    downloadNpm(registry, tmp, progress); ok = true
+                    break
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    errors += "${registry.substringAfter("//")}: ${e.message}"
+                    tmp.delete()
                 }
             }
-            if (lastErr != null) throw ApiException(0, "Не удалось скачать Claude Code: ${lastErr.message}")
+            if (!ok) throw ApiException(0, "Не удалось скачать Claude Code ни из одного источника:\n" +
+                errors.joinToString("\n") { "• $it" } +
+                "\n\nНажмите «Скачать через браузер», затем «Выбрать скачанный файл».")
             if (!tmp.exists() || tmp.length() < 1_000_000) throw ApiException(0, "Файл Claude Code повреждён, попробуйте ещё раз")
             Os.chmod(tmp.absolutePath, 0x1ed)
             if (!tmp.renameTo(claudeBin)) throw ApiException(0, "Не удалось сохранить Claude Code")
@@ -185,6 +200,12 @@ class EmbeddedClaude(private val ctx: Context) {
     private fun getText(url: String): String = dl.newCall(Request.Builder().url(url).build()).execute().use {
         if (!it.isSuccessful) throw ApiException(it.code, "HTTP ${it.code} ($url)")
         it.body!!.string()
+    }
+
+    /** Direct link to the official file, to download it in the browser if the app's own download fails. */
+    suspend fun browserDownloadUrl(): String = withContext(Dispatchers.IO) {
+        val v = runCatching { getText("$gcs/latest").trim() }.getOrNull()?.takeIf { it.matches(Regex("[0-9.]+")) } ?: "2.1.330"
+        "$gcs/$v/linux-arm64-musl/claude"
     }
 
     /** Official build linux-arm64-musl + SHA-256 check against the release manifest. */
@@ -275,7 +296,7 @@ class EmbeddedClaude(private val ctx: Context) {
                 kotlinx.coroutines.delay(2000L * (attempt + 1))
             }
         }
-        throw ApiException(0, "Не удалось скачать Claude Code: ${lastError?.message}")
+        throw ApiException(0, (lastError?.message ?: "ошибка сети") + " (после 8 попыток)")
     }
 
     suspend fun version(): String? = runCatching {

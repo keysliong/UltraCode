@@ -548,12 +548,20 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         if (ccInstalled && ccVersion == null) viewModelScope.launch { ccVersion = embedded.version() }
     }
 
-    fun installEmbedded() {
+    fun browserDownloadEmbedded(open: (String) -> Unit) {
+        viewModelScope.launch {
+            val url = embedded.browserDownloadUrl()
+            ccProgress = "В браузере скачается файл «claude» (около 365 МБ). Когда загрузка закончится, нажмите «Выбрать скачанный файл»."
+            open(url)
+        }
+    }
+
+    fun installEmbedded(localFile: Uri? = null) {
         if (ccBusy) return
         ccJob = viewModelScope.launch {
             ccBusy = true
             try {
-                embedded.install { text, value -> ccProgress = text; ccProgressValue = value }
+                embedded.install({ text, value -> ccProgress = text; ccProgressValue = value }, localFile)
                 ccVersion = embedded.version()
                 toast = "Claude Code установлен"
             } catch (e: CancellationException) {

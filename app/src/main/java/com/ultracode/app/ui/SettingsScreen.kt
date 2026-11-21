@@ -235,7 +235,8 @@ fun SettingsScreen(vm: AppViewModel, onBack: () -> Unit, onClaude: () -> Unit = 
             }
 
             Section(Icons.Outlined.AutoAwesome, "О приложении") {
-                Text("UltraCode 1.0 — ИИ-агент для программирования на телефоне.", style = MaterialTheme.typography.bodyMedium)
+                val ver = remember { runCatching { ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionName }.getOrNull() ?: "?" }
+                Text("UltraCode $ver — ИИ-агент для программирования на телефоне.", style = MaterialTheme.typography.bodyMedium)
                 Text(
                     "Создавайте приложения для Android, Windows, macOS, Linux и веба: агент пишет код, отправляет его на GitHub, а GitHub Actions собирает APK/EXE.",
                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -459,8 +460,9 @@ private fun EmbeddedPanel(vm: AppViewModel) {
             style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
         return
     }
+    val appVer = remember { runCatching { ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionName }.getOrNull() ?: "?" }
     Text(
-        "Официальный Claude Code скачивается прямо в UltraCode (около 170 МБ) и работает внутри приложения — без Termux и компьютера.",
+        "Официальный Claude Code (около 365 МБ) скачивается прямо в UltraCode и работает внутри приложения — без Termux и компьютера. Версия UltraCode: $appVer",
         style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
     if (vm.ccLoggedIn) {
@@ -492,12 +494,26 @@ private fun EmbeddedPanel(vm: AppViewModel) {
         Text(text, style = MaterialTheme.typography.bodySmall,
             color = if (text.startsWith("Ошибка")) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant)
     }
+    val filePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) vm.installEmbedded(uri)
+    }
+    if (!vm.ccInstalled) {
+        Button(onClick = { vm.installEmbedded() }, enabled = !vm.ccBusy) {
+            Icon(Icons.Outlined.Download, null, Modifier.size(18.dp)); Spacer(Modifier.size(6.dp))
+            Text(if (vm.ccBusy) "Устанавливаю…" else "Скачать Claude Code")
+        }
+        Text("Если загрузка не идёт:", style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(top = 4.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(onClick = { vm.browserDownloadEmbedded { url -> openUrl(ctx, url) } }, enabled = !vm.ccBusy) {
+                Text("Скачать через браузер")
+            }
+            OutlinedButton(onClick = { filePicker.launch(arrayOf("*/*")) }, enabled = !vm.ccBusy) {
+                Text("Выбрать файл")
+            }
+        }
+    }
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         if (!vm.ccInstalled) {
-            Button(onClick = { vm.installEmbedded() }, enabled = !vm.ccBusy) {
-                Icon(Icons.Outlined.Download, null, Modifier.size(18.dp)); Spacer(Modifier.size(6.dp))
-                Text(if (vm.ccBusy) "Устанавливаю…" else "Скачать Claude Code")
-            }
         } else if (!vm.ccLoggedIn) {
             Button(onClick = { vm.loginEmbedded { url -> openUrl(ctx, url) } }, enabled = !vm.ccBusy) {
                 Icon(Icons.AutoMirrored.Outlined.Login, null, Modifier.size(18.dp)); Spacer(Modifier.size(6.dp))
