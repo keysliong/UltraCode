@@ -31,6 +31,10 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.text.LinkAnnotation
+import androidx.compose.ui.text.TextLinkStyles
+import androidx.compose.ui.text.withLink
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
@@ -62,10 +66,40 @@ private fun parse(md: String): List<Block> {
     return out
 }
 
-private fun inline(s: String, codeBg: Color): AnnotatedString = buildAnnotatedString {
+private val urlEnd = setOf(' ', '\n', '\t', ')', ']', '>', '<', '"', '\'', '`')
+
+private fun androidx.compose.ui.text.AnnotatedString.Builder.link(text: String, url: String, color: Color) {
+    withLink(
+        LinkAnnotation.Url(
+            url,
+            TextLinkStyles(style = SpanStyle(color = color, textDecoration = TextDecoration.Underline)),
+        ),
+    ) { append(text) }
+}
+
+/** Plain text with clickable links (for user messages). */
+fun linkify(s: String, color: Color): AnnotatedString = inline(s, Color.Transparent, color, markdown = false)
+
+private fun inline(s: String, codeBg: Color, linkColor: Color, markdown: Boolean = true): AnnotatedString = buildAnnotatedString {
     var i = 0
     while (i < s.length) {
         when {
+            markdown && s[i] == '[' && s.indexOf("](", i) > i && s.indexOf(')', s.indexOf("](", i)) > 0 &&
+                s.substring(s.indexOf("](", i) + 2).let { it.startsWith("http") || it.startsWith("mailto:") } -> {
+                val mid = s.indexOf("](", i)
+                val end = s.indexOf(')', mid)
+                link(s.substring(i + 1, mid), s.substring(mid + 2, end).trim(), linkColor)
+                i = end + 1
+            }
+            s.startsWith("https://", i) || s.startsWith("http://", i) -> {
+                var end = i
+                while (end < s.length && s[end] !in urlEnd) end++
+                while (end > i && s[end - 1] in ".,;:!?") end--
+                val url = s.substring(i, end)
+                link(url, url, linkColor)
+                i = end
+            }
+            !markdown -> { append(s[i]); i++ }
             s.startsWith("**", i) && s.indexOf("**", i + 2) > 0 -> {
                 val end = s.indexOf("**", i + 2)
                 withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(s.substring(i + 2, end)) }
@@ -92,6 +126,7 @@ private fun inline(s: String, codeBg: Color): AnnotatedString = buildAnnotatedSt
 fun MarkdownText(text: String, modifier: Modifier = Modifier) {
     val blocks = remember(text) { parse(text) }
     val codeBg = MaterialTheme.colorScheme.surfaceContainerHighest
+    val linkColor = MaterialTheme.colorScheme.primary
     Column(modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
         for (b in blocks) when (b) {
             is Block.Code -> CodeBlock(b.lang, b.code)
@@ -103,7 +138,7 @@ fun MarkdownText(text: String, modifier: Modifier = Modifier) {
                         line.startsWith("#") -> {
                             val level = line.takeWhile { it == '#' }.length
                             Text(
-                                inline(line.drop(level).trim(), codeBg),
+                                inline(line.drop(level).trim(), codeBg, linkColor),
                                 style = when (level) {
                                     1 -> MaterialTheme.typography.headlineSmall
                                     2 -> MaterialTheme.typography.titleLarge
@@ -119,16 +154,16 @@ fun MarkdownText(text: String, modifier: Modifier = Modifier) {
                             Row(Modifier.padding(start = (indent * 12).dp)) {
                                 Text(bullet, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.primary)
                                 Spacer(Modifier.width(8.dp))
-                                Text(inline(m.groupValues[2], codeBg), style = MaterialTheme.typography.bodyLarge)
+                                Text(inline(m.groupValues[2], codeBg, linkColor), style = MaterialTheme.typography.bodyLarge)
                             }
                         }
                         line.startsWith(">") -> Surface(
                             color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f),
                             shape = RoundedCornerShape(12.dp),
                         ) {
-                            Text(inline(line.removePrefix(">").trim(), codeBg), Modifier.padding(10.dp), style = MaterialTheme.typography.bodyMedium)
+                            Text(inline(line.removePrefix(">").trim(), codeBg, linkColor), Modifier.padding(10.dp), style = MaterialTheme.typography.bodyMedium)
                         }
-                        else -> Text(inline(line, codeBg), style = MaterialTheme.typography.bodyLarge)
+                        else -> Text(inline(line, codeBg, linkColor), style = MaterialTheme.typography.bodyLarge)
                     }
                 }
             }

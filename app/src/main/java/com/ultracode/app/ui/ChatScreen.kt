@@ -342,7 +342,11 @@ private fun UserBubble(m: ChatMessage) {
                 .combinedClickable(onClick = {}, onLongClick = { clip.setText(AnnotatedString(m.text)) }),
         ) {
             SelectionContainer {
-                Text(m.text, Modifier.padding(horizontal = 16.dp, vertical = 10.dp), style = MaterialTheme.typography.bodyLarge)
+                Text(
+                    linkify(m.text, MaterialTheme.colorScheme.primary),
+                    Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                    style = MaterialTheme.typography.bodyLarge,
+                )
             }
         }
     }
