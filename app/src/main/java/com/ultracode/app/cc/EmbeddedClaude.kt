@@ -81,13 +81,27 @@ class EmbeddedClaude(private val ctx: Context) {
     }
 
     /** Runs a command to completion and returns (exitCode, output). */
-    private suspend fun exec(cmd: List<String>, onLine: (String) -> Unit = {}): Pair<Int, String> = withContext(Dispatchers.IO) {
+    /** Runs a command; kills it after [timeoutSec] (returns code -2 then). Output is kept for diagnostics. */
+    private suspend fun exec(cmd: List<String>, timeoutSec: Long = 900, onLine: (String) -> Unit = {}): Pair<Int, String> = withContext(Dispatchers.IO) {
         val p = start(cmd)
         p.outputStream.close()
         val out = StringBuilder()
-        p.inputStream.bufferedReader().forEachLine { out.appendLine(it); onLine(it) }
-        p.waitFor() to out.toString()
+        val reader = Thread {
+            runCatching { p.inputStream.bufferedReader().forEachLine { synchronized(out) { out.appendLine(it) }; onLine(it) } }
+        }
+        reader.start()
+        val finished = try {
+            p.waitFor(timeoutSec, java.util.concurrent.TimeUnit.SECONDS)
+        } catch (e: InterruptedException) {
+            false
+        }
+        if (!finished) p.destroyForcibly()
+        reader.join(3000)
+        (if (finished) p.exitValue() else -2) to synchronized(out) { out.toString() }
     }
+
+    /** Last start-up output of Claude Code (shown when it does not start). */
+    var lastDiagnostics: String = ""; private set
 
     private fun writeFakeProc() {
         val fake = File(root, ".fake").apply { mkdirs() }
@@ -127,7 +141,7 @@ class EmbeddedClaude(private val ctx: Context) {
                 File(root, "etc/apk/repositories").writeText("$mirror/v3.20/main\n$mirror/v3.20/community\n")
                 progress("Устанавливаю пакеты Linux (попытка ${i + 1}, ${mirror.substringAfter("//").substringBefore('/')})…", null)
                 val (code, out) = exec(listOf("/sbin/apk", "add", "--no-cache", "--update-cache",
-                    "bash", "git", "ripgrep", "ca-certificates", "util-linux-misc", "libgcc", "libstdc++")) {
+                    "bash", "git", "ripgrep", "ca-certificates", "util-linux-misc", "libgcc", "libstdc++"), timeoutSec = 900) {
                     progress("Пакеты: ${it.take(60)}", null)
                 }
                 lastOut = out
@@ -191,7 +205,7 @@ class EmbeddedClaude(private val ctx: Context) {
             if (!tmp.renameTo(claudeBin)) throw ApiException(0, "Не удалось сохранить Claude Code")
         }
         progress("Проверяю Claude Code…", null)
-        val v = version() ?: throw ApiException(0, "Claude Code установлен, но не запускается. Пришлите скриншот разработчику.")
+        val v = version() ?: throw ApiException(0, "Claude Code скачан, но не запускается внутри Linux-среды:\n$lastDiagnostics\n\nПришлите этот скриншот разработчику.")
         progress("Готово: $v", 1f)
     }
 
@@ -219,9 +233,17 @@ class EmbeddedClaude(private val ctx: Context) {
         if (sum != null) {
             progress("Проверяю целостность файла…", null)
             val md = java.security.MessageDigest.getInstance("SHA-256")
+            val total = dest.length().coerceAtLeast(1)
+            var done = 0L
+            var lastPct = -1
             dest.inputStream().buffered(1 shl 16).use { input ->
                 val buf = ByteArray(1 shl 16)
-                while (true) { val n = input.read(buf); if (n < 0) break; md.update(buf, 0, n) }
+                while (true) {
+                    val n = input.read(buf); if (n < 0) break
+                    md.update(buf, 0, n); done += n
+                    val pct = (done * 100 / total).toInt()
+                    if (pct != lastPct) { lastPct = pct; progress("Проверяю целостность файла: $pct%", done.toFloat() / total) }
+                }
             }
             val got = md.digest().joinToString("") { "%02x".format(it) }
             if (!got.equals(sum, true)) { dest.delete(); throw ApiException(0, "Файл скачался с ошибкой (не совпала контрольная сумма)") }
@@ -300,7 +322,9 @@ class EmbeddedClaude(private val ctx: Context) {
     }
 
     suspend fun version(): String? = runCatching {
-        val (code, out) = exec(listOf("/usr/local/bin/claude", "--version"))
+        val (code, out) = exec(listOf("/usr/local/bin/claude", "--version"), timeoutSec = 120)
+        lastDiagnostics = (if (code == -2) "не ответил за 2 минуты\n" else "код выхода $code\n") +
+            out.lines().filter { it.isNotBlank() }.takeLast(8).joinToString("\n")
         // proot may print warnings first: take the line with the version.
         if (code == 0) (out.lines().firstOrNull { it.contains("Claude Code") } ?: out.lines().firstOrNull { it.isNotBlank() && !it.startsWith("proot") })?.trim() else null
     }.getOrNull()
