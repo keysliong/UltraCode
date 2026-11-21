@@ -14,8 +14,14 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
-      - name: Install proot
-        run: sudo apt-get update -q && sudo apt-get install -y -q proot
+      - name: Build Termux proot (the same proot code the app ships)
+        run: |
+          sudo apt-get update -q && sudo apt-get install -y -q libtalloc-dev libarchive-dev uthash-dev
+          git clone -q --depth 1 https://github.com/termux/proot termux-proot
+          make -C termux-proot/src -j4 proot loader >/dev/null
+          sudo cp termux-proot/src/proot /usr/local/bin/proot
+          echo "PROOT_LOADER=$PWD/termux-proot/src/loader/loader" >> "$GITHUB_ENV"
+          proot --help | head -5
 
       - name: Alpine rootfs (same version as in the app)
         run: |
@@ -29,13 +35,15 @@ jobs:
         run: |
           cat > p.sh <<'EOF'
           #!/bin/bash
-          exec proot --kill-on-exit --link2symlink -0 -r "$R" -b /dev -b /proc -b /sys -b "$R/tmp:/dev/shm" \
-            -b /proc/self/fd:/dev/fd -w "${CWD:-/root}" /usr/bin/env -i HOME=/root USER=root LANG=C.UTF-8 \
+          exec proot --kill-on-exit --link2symlink -L --sysvipc --kernel-release=6.2.1-ultracode -0 -r "$R" \
+            -b /dev -b /proc -b /sys -b "$R/tmp:/dev/shm" -b /proc/self/fd:/dev/fd -b /proc/self/fd/0:/dev/stdin \
+            -b /proc/self/fd/1:/dev/stdout -b /proc/self/fd/2:/dev/stderr -b /dev/urandom:/dev/random \
+            -w "${CWD:-/root}" /usr/bin/env -i HOME=/root USER=root LANG=C.UTF-8 \
             TERM=xterm-256color PATH=/usr/local/bin:/usr/local/sbin:/usr/bin:/usr/sbin:/bin:/sbin SHELL=/bin/bash \
             TMPDIR=/tmp DISABLE_AUTOUPDATER=1 USE_BUILTIN_RIPGREP=0 CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1 "$@"
           EOF
           chmod +x p.sh
-          ./p.sh /bin/sh -c 'cat /etc/alpine-release; id'
+          ./p.sh /bin/sh -c 'cat /etc/alpine-release; id' || { echo "--- verbose:"; proot -v 2 -0 -r "$R" /bin/sh -c id; exit 1; }
 
       - name: apk add (same packages as the app)
         run: |
