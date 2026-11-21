@@ -280,7 +280,8 @@ class EmbeddedClaude(private val ctx: Context) {
 
     suspend fun version(): String? = runCatching {
         val (code, out) = exec(listOf("/usr/local/bin/claude", "--version"))
-        if (code == 0) out.lines().firstOrNull { it.isNotBlank() }?.trim() else null
+        // proot may print warnings first: take the line with the version.
+        if (code == 0) (out.lines().firstOrNull { it.contains("Claude Code") } ?: out.lines().firstOrNull { it.isNotBlank() && !it.startsWith("proot") })?.trim() else null
     }.getOrNull()
 
     fun remove() {
