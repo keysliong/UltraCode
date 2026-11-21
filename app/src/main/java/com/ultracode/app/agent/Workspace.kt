@@ -77,10 +77,12 @@ class SafWorkspace(private val ctx: Context, uri: Uri, name: String?) : Workspac
         return cur
     }
 
-    override fun list(path: String): List<String> =
-        (find(segments(path)) ?: return emptyList()).listFiles()
+    override fun list(path: String): List<String> {
+        val dir = find(segments(path)) ?: return emptyList()
+        return dir.listFiles()
             .sortedWith(compareBy({ !it.isDirectory }, { it.name ?: "" }))
             .map { if (it.isDirectory) "${it.name}/" else it.name ?: "?" }
+    }
 
     override fun readBytes(path: String): ByteArray? {
         val f = find(segments(path))?.takeIf { it.isFile } ?: return null

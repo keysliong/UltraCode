@@ -24,7 +24,7 @@ jobs:
       - name: Build APK
         run: |
           chmod +x gradlew
-          ./gradlew :app:assembleRelease --no-daemon --stacktrace
+          ./gradlew :app:assembleRelease --no-daemon
 
       - name: Rename APK
         run: cp app/build/outputs/apk/release/app-release.apk UltraCode.apk
