@@ -126,6 +126,8 @@ fun ChatScreen(vm: AppViewModel, onSettings: () -> Unit, onRepos: () -> Unit, on
         vm.toast?.let { snack.showSnackbar(it); vm.toast = null }
     }
 
+    val clip = LocalClipboardManager.current
+    val ctx = LocalContext.current
     val folderPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
         if (uri != null) vm.setWorkspace(uri)
     }
@@ -194,6 +196,16 @@ fun ChatScreen(vm: AppViewModel, onSettings: () -> Unit, onRepos: () -> Unit, on
                     onAgent = { vm.toggleAgent() },
                     onFolder = { folderPicker.launch(null) },
                     onRepo = onRepos,
+                    onClaude = {
+                        val task = vm.claudeHandoff()
+                        if (task.isBlank()) {
+                            vm.toast = "Напишите задачу в поле ввода — она уйдёт в Claude Code"
+                        } else {
+                            clip.setText(AnnotatedString(task))
+                            openClaudeCode(ctx)
+                            vm.toast = "Задача скопирована — вставьте её в Claude Code"
+                        }
+                    },
                 )
                 if (vm.running) LinearProgressIndicator(Modifier.fillMaxWidth().height(2.dp))
                 Box(Modifier.weight(1f)) {
@@ -217,7 +229,7 @@ fun shortModel(m: String): String = m.substringAfter('/').removeSuffix(":free")
 @Composable
 private fun ContextChips(
     agent: Boolean, folder: String, repo: String?,
-    onAgent: () -> Unit, onFolder: () -> Unit, onRepo: () -> Unit,
+    onAgent: () -> Unit, onFolder: () -> Unit, onRepo: () -> Unit, onClaude: () -> Unit,
 ) {
     LazyRow(
         contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp),
@@ -248,6 +260,15 @@ private fun ContextChips(
                 shape = CircleShape,
                 colors = if (repo != null) AssistChipDefaults.assistChipColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
                 else AssistChipDefaults.assistChipColors(),
+            )
+        }
+        item {
+            AssistChip(
+                onClick = onClaude,
+                label = { Text("В Claude Code", maxLines = 1) },
+                leadingIcon = { Icon(Icons.Filled.AutoAwesome, null, Modifier.size(18.dp)) },
+                shape = CircleShape,
+                colors = AssistChipDefaults.assistChipColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer),
             )
         }
     }
@@ -473,7 +494,7 @@ private fun QuestionCard(question: String, options: List<String>, onAnswer: (Str
 
 @Composable
 private fun InputBar(vm: AppViewModel) {
-    var text by rememberSaveable { mutableStateOf("") }
+    var text by vm::draft
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.PickMultipleVisualMedia(4)) { uris: List<Uri> ->
         uris.forEach { vm.addImage(it) }
     }

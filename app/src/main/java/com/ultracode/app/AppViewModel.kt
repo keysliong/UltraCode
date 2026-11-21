@@ -57,6 +57,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     val liveSources = mutableStateListOf<com.ultracode.app.data.WebSource>()
     var pending by mutableStateOf<PendingQuestion?>(null); private set
     val attachments = mutableStateListOf<String>()
+    /** Text in the message field (shared so it can be sent to Claude Code). */
+    var draft by mutableStateOf("")
     var toast by mutableStateOf<String?>(null)
     var loadingModels by mutableStateOf(false); private set
     var appVisible = true
@@ -551,6 +553,25 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun answer(text: String) { pending?.answer?.complete(text) }
+
+    /**
+     * Builds a task for Claude Code (your subscription on claude.ai/code):
+     * the text being typed (or the last question), the attached repository and the last answer as context.
+     */
+    fun claudeHandoff(): String {
+        val c = current
+        val task = draft.trim().ifEmpty { c?.messages?.lastOrNull { it.role == "user" }?.text?.trim().orEmpty() }
+        if (task.isEmpty()) return ""
+        val lastAnswer = c?.messages?.lastOrNull { it.role == "assistant" && !it.error }
+        return buildString {
+            c?.repo?.let { append("Репозиторий: https://github.com/").append(it).append("\n\n") }
+            append(task)
+            if (lastAnswer != null && draft.isBlank()) {
+                append("\n\n---\nКонтекст из UltraCode (ответ ${lastAnswer.model ?: "ИИ"}):\n")
+                append(lastAnswer.text.take(3000))
+            }
+        }
+    }
 
     fun stop() {
         job?.cancel()
