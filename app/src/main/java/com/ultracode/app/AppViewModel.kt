@@ -278,6 +278,34 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** Code that the user enters on github.com/login/device. */
+    var githubDevice by mutableStateOf<com.ultracode.app.github.GitHubAuth.DeviceCode?>(null); private set
+    private var githubLoginJob: Job? = null
+
+    fun loginGitHub(openBrowser: (String) -> Unit) {
+        githubLoginJob?.cancel()
+        githubLoginJob = viewModelScope.launch {
+            try {
+                val code = com.ultracode.app.github.GitHubAuth.start()
+                githubDevice = code
+                openBrowser(code.verificationUri)
+                val token = com.ultracode.app.github.GitHubAuth.waitForToken(code)
+                githubDevice = null
+                connectGitHub(token)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                githubDevice = null
+                toast = "Вход в GitHub не удался: ${e.message}"
+            }
+        }
+    }
+
+    fun cancelGitHubLogin() {
+        githubLoginJob?.cancel()
+        githubDevice = null
+    }
+
     fun disconnectGitHub() {
         updateSettings { it.copy(githubToken = "", githubLogin = "") }
         repos = emptyList()

@@ -87,6 +87,9 @@ fun ReposScreen(vm: AppViewModel, onBack: () -> Unit) {
     ) { inner ->
         if (!connected) {
             var token by remember { mutableStateOf("") }
+            var showToken by remember { mutableStateOf(false) }
+            val clip = androidx.compose.ui.platform.LocalClipboardManager.current
+            val device = vm.githubDevice
             Column(Modifier.fillMaxSize().padding(inner).padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 ElevatedCard(shape = RoundedCornerShape(28.dp)) {
                     Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -95,15 +98,49 @@ fun ReposScreen(vm: AppViewModel, onBack: () -> Unit) {
                         }
                         Text("Подключите GitHub", style = MaterialTheme.typography.titleLarge)
                         Text(
-                            "Агент сможет читать ваши репозитории, создавать новые, делать коммиты и собирать APK/EXE через GitHub Actions.\n\n" +
-                                "1. Нажмите «Создать токен» и войдите в GitHub.\n2. Отметьте права repo и workflow, нажмите Generate token.\n3. Скопируйте токен и вставьте ниже.",
+                            "Агент сможет читать ваши репозитории, создавать новые, делать коммиты и собирать APK/EXE через GitHub Actions.",
                             style = MaterialTheme.typography.bodyMedium,
                         )
-                        OutlinedButton(onClick = {
-                            openUrl(ctx, "https://github.com/settings/tokens/new?scopes=repo,workflow&description=UltraCode")
-                        }) { Text("Создать токен") }
-                        KeyField("Токен GitHub (ghp_…)", token) { token = it }
-                        Button(onClick = { vm.connectGitHub(token) }, enabled = token.isNotBlank()) { Text("Подключить") }
+                        if (device == null) {
+                            Button(
+                                onClick = { vm.loginGitHub { url -> openUrl(ctx, url) } },
+                                modifier = Modifier.fillMaxWidth(),
+                            ) { Text("Войти через GitHub") }
+                        } else {
+                            Text("Введите этот код на странице GitHub:", style = MaterialTheme.typography.bodyMedium)
+                            androidx.compose.material3.Surface(
+                                onClick = { clip.setText(androidx.compose.ui.text.AnnotatedString(device.userCode)) },
+                                shape = RoundedCornerShape(20.dp),
+                                color = MaterialTheme.colorScheme.secondaryContainer,
+                                modifier = Modifier.fillMaxWidth(),
+                            ) {
+                                Column(Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Text(
+                                        device.userCode,
+                                        style = MaterialTheme.typography.displaySmall,
+                                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                                    )
+                                    Text("нажмите, чтобы скопировать", style = MaterialTheme.typography.labelSmall)
+                                }
+                            }
+                            LinearProgressIndicator(Modifier.fillMaxWidth())
+                            Text("Ждём подтверждения на GitHub…", style = MaterialTheme.typography.bodySmall)
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                OutlinedButton(onClick = {
+                                    clip.setText(androidx.compose.ui.text.AnnotatedString(device.userCode))
+                                    openUrl(ctx, device.verificationUri)
+                                }) { Text("Открыть GitHub") }
+                                TextButton(onClick = { vm.cancelGitHubLogin() }) { Text("Отмена") }
+                            }
+                        }
+                        TextButton(onClick = { showToken = !showToken }) { Text(if (showToken) "Скрыть вход по токену" else "Войти по токену (вручную)") }
+                        if (showToken) {
+                            OutlinedButton(onClick = {
+                                openUrl(ctx, "https://github.com/settings/tokens/new?scopes=repo,workflow&description=UltraCode")
+                            }) { Text("Создать токен") }
+                            KeyField("Токен GitHub (ghp_…)", token) { token = it }
+                            Button(onClick = { vm.connectGitHub(token) }, enabled = token.isNotBlank()) { Text("Подключить") }
+                        }
                     }
                 }
             }
