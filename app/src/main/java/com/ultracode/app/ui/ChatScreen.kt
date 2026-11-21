@@ -612,11 +612,6 @@ private fun HistoryDrawer(
         }
         HorizontalDivider(Modifier.padding(horizontal = 24.dp, vertical = 8.dp))
         NavigationDrawerItem(
-            label = { Text("Claude Code · войти в аккаунт") },
-            icon = { Icon(Icons.Filled.AutoAwesome, null) },
-            selected = false, onClick = onClaude, modifier = Modifier.padding(horizontal = 12.dp),
-        )
-        NavigationDrawerItem(
             label = { Text(if (vm.settings.githubLogin.isNotBlank()) "GitHub · ${vm.settings.githubLogin}" else "Подключить GitHub") },
             icon = { Icon(Icons.Outlined.Code, null) },
             selected = false, onClick = onRepos, modifier = Modifier.padding(horizontal = 12.dp),

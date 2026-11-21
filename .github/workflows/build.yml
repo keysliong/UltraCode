@@ -47,7 +47,7 @@ jobs:
           for f in "$J"/*.so; do echo "== $f"; readelf -d "$f" | grep -E 'NEEDED|RUNPATH|SONAME' || true; done
           readelf -d "$J/libproot.so" | grep -E 'NEEDED|RUNPATH' || true
           curl -fsSL https://dl-cdn.alpinelinux.org/alpine/v3.20/releases/aarch64/alpine-minirootfs-3.20.3-aarch64.tar.gz \
-            -o app/src/main/assets/alpine-minirootfs.tar.gz
+            -o app/src/main/assets/alpine-rootfs.bin
           ls -la "$J" app/src/main/assets
 
       - name: Build APK

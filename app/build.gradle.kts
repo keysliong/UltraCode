@@ -54,7 +54,7 @@ android {
         }
     }
     androidResources {
-        noCompress += setOf("tar.gz", "gz")
+        noCompress += setOf("bin")
     }
 }
 

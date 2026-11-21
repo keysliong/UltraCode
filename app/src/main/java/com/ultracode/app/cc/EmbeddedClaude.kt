@@ -101,7 +101,8 @@ class EmbeddedClaude(private val ctx: Context) {
         if (!File(root, "bin/busybox").exists()) {
             progress("Готовлю Linux-среду…", null)
             root.deleteRecursively(); root.mkdirs()
-            ctx.assets.open("alpine-minirootfs.tar.gz").use { Tar.extract(GZIPInputStream(it), root) }
+            // Stored as .bin: the Android build un-gzips/renames assets ending in .gz.
+            ctx.assets.open("alpine-rootfs.bin").use { Tar.extract(GZIPInputStream(it, 1 shl 16), root) }
         }
         File(root, "etc/resolv.conf").apply { delete(); writeText("nameserver 8.8.8.8\nnameserver 1.1.1.1\n") }
         File(root, "etc/hosts").writeText("127.0.0.1 localhost\n::1 localhost\n")
