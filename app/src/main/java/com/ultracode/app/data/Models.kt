@@ -4,7 +4,7 @@ import kotlinx.serialization.Serializable
 import java.util.UUID
 
 @Serializable
-enum class ProviderKind { ANTHROPIC, OPENAI }
+enum class ProviderKind { ANTHROPIC, OPENAI, CLAUDE_CODE }
 
 /** Any AI provider: Claude, OpenRouter (free models) or a user's own network. */
 @Serializable
@@ -50,6 +50,8 @@ data class Chat(
     val updated: Long = System.currentTimeMillis(),
     val repo: String? = null,
     val agent: Boolean = true,
+    /** Claude Code session id (to continue the same conversation in the official CLI). */
+    val ccSession: String? = null,
 )
 
 @Serializable
@@ -68,6 +70,9 @@ data class AppSettings(
     val notifyQuestions: Boolean = true,
     val webAccess: Boolean = true,
     val autoFallback: Boolean = true,
+    /** Project folder for Claude Code (inside ~/projects on the bridge). */
+    val ccFolder: String = "ultracode",
+    val ccAllowBash: Boolean = true,
 ) {
     fun provider(id: String = selectedProvider) = providers.firstOrNull { it.id == id }
 }
@@ -75,6 +80,7 @@ data class AppSettings(
 object Defaults {
     const val ANTHROPIC = "anthropic"
     const val OPENROUTER = "openrouter"
+    const val CLAUDE_CODE = "claude_code"
 
     val claudeModels = listOf(
         "claude-opus-5-5",
@@ -118,6 +124,14 @@ object Defaults {
     )
 
     val providers = listOf(
+        ProviderConfig(
+            id = CLAUDE_CODE,
+            name = "Claude Code (подписка)",
+            kind = ProviderKind.CLAUDE_CODE,
+            baseUrl = "http://127.0.0.1:8765",
+            models = listOf("sonnet", "opus", "haiku"),
+            builtin = true,
+        ),
         ProviderConfig(
             id = ANTHROPIC,
             name = "Claude",

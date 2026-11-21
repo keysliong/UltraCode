@@ -456,6 +456,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             usedModel = model
             try {
                 val chat = chats.first { it.id == chatId }
+                if (p.kind == com.ultracode.app.data.ProviderKind.CLAUDE_CODE) {
+                    runClaudeCode(chat, p, model, sb)
+                    return@launch
+                }
                 val convo = withContext(Dispatchers.IO) { history(chat) }.toMutableList()
                 val ws = workspace()
                 val gh = settings.githubToken.takeIf { it.isNotBlank() }?.let { GitHub(it) }
@@ -519,6 +523,60 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 }
             }
         }
+    }
+
+    // ------------------------------------------------------------ Claude Code (subscription via bridge)
+
+    var bridgeStatus by mutableStateOf<String?>(null); private set
+
+    fun checkBridge() {
+        val p = settings.provider(Defaults.CLAUDE_CODE) ?: return
+        viewModelScope.launch {
+            bridgeStatus = "Проверяю…"
+            bridgeStatus = try {
+                "Подключено · " + com.ultracode.app.ai.ClaudeBridge.health(p.baseUrl, p.apiKey)
+            } catch (e: Exception) {
+                "Нет связи: ${e.message}"
+            }
+        }
+    }
+
+    fun bridgeScript(): String = ctx.assets.open("ultracode-bridge.js").use { it.readBytes().toString(Charsets.UTF_8) }
+
+    private suspend fun runClaudeCode(chat: Chat, p: ProviderConfig, model: String, sb: StringBuilder) {
+        val last = chat.messages.lastOrNull { it.role == "user" }
+        var prompt = last?.text.orEmpty()
+        if (last != null && last.images.isNotEmpty()) prompt += "\n\n(К сообщению приложены фото, но в Claude Code через мост они пока не передаются.)"
+        val system = buildString {
+            append(Prompts.design)
+            chat.repo?.let { append("\n\nРепозиторий GitHub пользователя для этой задачи: https://github.com/").append(it) }
+            if (settings.systemPrompt.isNotBlank()) append("\n\nИнструкции пользователя:\n").append(settings.systemPrompt)
+        }
+        var needSep = false
+        statusText = "Claude Code запускается…"
+        val res = com.ultracode.app.ai.ClaudeBridge.run(
+            url = p.baseUrl, token = p.apiKey, prompt = prompt, session = chat.ccSession, model = model,
+            folder = chat.repo?.substringAfter('/') ?: settings.ccFolder,
+            system = system, allowBash = settings.ccAllowBash,
+            onText = { d ->
+                if (needSep && sb.isNotEmpty() && !sb.endsWith("\n\n")) sb.append("\n\n")
+                needSep = false
+                sb.append(d)
+                statusText = null
+                streamingText = sb.toString()
+            },
+            onTool = { label, web ->
+                needSep = true
+                viewModelScope.launch {
+                    liveTools += label
+                    if (web != null && liveSources.none { it.url == web.url }) liveSources += web
+                }
+            },
+            onSession = { id ->
+                viewModelScope.launch { chats.firstOrNull { it.id == chat.id }?.let { save(it.copy(ccSession = id)) } }
+            },
+        )
+        if (res.text.isNotBlank() && sb.isEmpty()) { sb.append(res.text); streamingText = sb.toString() }
     }
 
     private fun history(chat: Chat): List<WireMessage> {

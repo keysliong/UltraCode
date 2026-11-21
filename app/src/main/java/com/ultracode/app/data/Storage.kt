@@ -11,7 +11,7 @@ class Storage(context: Context) {
     val imagesDir = File(context.filesDir, "images").apply { mkdirs() }
 
     fun loadSettings(): AppSettings {
-        val raw = prefs.getString("settings", null) ?: return AppSettings()
+        val raw = prefs.getString("settings", null) ?: return withBuiltins(AppSettings())
         val s = runCatching { json.decodeFromString<AppSettings>(raw) }.getOrElse { AppSettings() }
         return withBuiltins(s)
     }
@@ -42,8 +42,15 @@ class Storage(context: Context) {
             if (i < 0) list.add(0, b)
             else list[i] = list[i].copy(
                 name = b.name, kind = b.kind, builtin = true, keyUrl = b.keyUrl,
+                baseUrl = if (b.kind == ProviderKind.CLAUDE_CODE) list[i].baseUrl.ifBlank { b.baseUrl } else list[i].baseUrl,
                 models = if (b.id == Defaults.OPENROUTER && list[i].verifiedAt == 0L) b.models else list[i].models.ifEmpty { b.models },
             )
+        }
+        // Secret token for the Claude Code bridge (generated once, used in the install command).
+        val cc = list.indexOfFirst { it.id == Defaults.CLAUDE_CODE }
+        if (cc >= 0 && list[cc].apiKey.isBlank()) {
+            val bytes = ByteArray(16).also { java.security.SecureRandom().nextBytes(it) }
+            list[cc] = list[cc].copy(apiKey = bytes.joinToString("") { "%02x".format(it) })
         }
         return s.copy(providers = list)
     }

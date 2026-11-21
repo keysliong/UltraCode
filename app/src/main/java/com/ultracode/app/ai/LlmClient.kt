@@ -71,6 +71,7 @@ object LlmClient {
         when (p.kind) {
             ProviderKind.ANTHROPIC -> anthropic(p, model, system, messages, tools, onText)
             ProviderKind.OPENAI -> openai(p, model, system, messages, tools, onText)
+            ProviderKind.CLAUDE_CODE -> throw ApiException(0, "Claude Code работает через мост, а не через API")
         }
     }
 
@@ -303,7 +304,7 @@ object LlmClient {
     }
 
     /** Lists models of a provider. For OpenRouter returns only free models. */
-    suspend fun listModels(p: ProviderConfig): List<String> = withContext(Dispatchers.IO) {
+    suspend fun listModels(p: ProviderConfig): List<String> = if (p.kind == ProviderKind.CLAUDE_CODE) listOf("sonnet", "opus", "haiku") else withContext(Dispatchers.IO) {
         val b = Request.Builder().url(p.baseUrl.trimEnd('/') + "/models")
         if (p.kind == ProviderKind.ANTHROPIC) {
             b.header("x-api-key", p.apiKey.trim()).header("anthropic-version", "2023-06-01")

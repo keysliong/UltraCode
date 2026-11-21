@@ -31,6 +31,7 @@ import androidx.compose.material.icons.outlined.Key
 import androidx.compose.material.icons.outlined.Palette
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.SmartToy
+import androidx.compose.material.icons.outlined.Terminal
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ElevatedCard
@@ -42,6 +43,7 @@ import androidx.compose.material3.LargeTopAppBar
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SegmentedButton
@@ -116,6 +118,9 @@ fun SettingsScreen(vm: AppViewModel, onBack: () -> Unit, onClaude: () -> Unit = 
                     }
                 }
             }
+
+            val cc = s.provider(Defaults.CLAUDE_CODE)
+            if (cc != null) ClaudeCodeSection(vm, cc)
 
             val claude = s.provider(Defaults.ANTHROPIC)
             if (claude != null) Section(Icons.Outlined.AutoAwesome, "Аккаунт Claude") {
@@ -353,5 +358,86 @@ private fun AddModelRow(label: String, hint: String, onAdd: (String) -> Unit) {
         CookieButton(onClick = { if (text.isNotBlank()) { onAdd(text); text = "" } }, size = 48.dp, container = MaterialTheme.colorScheme.primary) {
             Icon(Icons.Filled.Add, "Добавить")
         }
+    }
+}
+
+@Composable
+private fun ClaudeCodeSection(vm: AppViewModel, cc: ProviderConfig) {
+    val ctx = LocalContext.current
+    val clip = androidx.compose.ui.platform.LocalClipboardManager.current
+    val s = vm.settings
+    var pc by remember { mutableStateOf(!cc.baseUrl.contains("127.0.0.1")) }
+    Section(Icons.Outlined.Terminal, "Claude Code по подписке") {
+        Text(
+            "Модели Claude по подписке Pro/Max прямо в чате UltraCode. Работает официальный Claude Code: " +
+                "вы входите в свой аккаунт в нём самом, UltraCode ваш вход не видит, а только передаёт задачи и показывает ответы.",
+            style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                vm.bridgeStatus ?: "Статус не проверен",
+                style = MaterialTheme.typography.bodySmall,
+                color = if (vm.bridgeStatus?.startsWith("Подключено") == true) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.weight(1f),
+            )
+            TextButton(onClick = { vm.checkBridge() }) { Text("Проверить") }
+        }
+        SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+            SegmentedButton(!pc, { pc = false; vm.updateProvider(cc.copy(baseUrl = "http://127.0.0.1:8765")) }, SegmentedButtonDefaults.itemShape(0, 2)) { Text("На телефоне") }
+            SegmentedButton(pc, { pc = true }, SegmentedButtonDefaults.itemShape(1, 2)) { Text("На компьютере") }
+        }
+        if (!pc) {
+            Step("1", "Установите Termux из F-Droid (версия из Google Play устарела).")
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = { openUrl(ctx, "https://f-droid.org/packages/com.termux/") }) { Text("Скачать Termux") }
+            }
+            Step("2", "Скопируйте команду установки, откройте Termux, вставьте её и нажмите Enter. Установка займёт 5–10 минут.")
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = {
+                    clip.setText(androidx.compose.ui.text.AnnotatedString(com.ultracode.app.ai.ClaudeBridge.termuxInstallCommand(vm.bridgeScript(), cc.apiKey)))
+                    vm.toast = "Команда скопирована — вставьте в Termux"
+                }) { Text("Скопировать команду") }
+                OutlinedButton(onClick = {
+                    val i = ctx.packageManager.getLaunchIntentForPackage("com.termux")
+                    if (i != null) ctx.startActivity(i) else vm.toast = "Termux не установлен"
+                }) { Text("Открыть Termux") }
+            }
+            Step("3", "В Termux выполните uc-login и войдите в аккаунт Claude (откроется страница claude.ai — скопируйте код и вставьте в Termux).")
+            Step("4", "Выполните uc-bridge — мост запущен. Не закрывайте Termux (можно свернуть).")
+            Step("5", "В UltraCode выберите модель «Claude Code (подписка)» и пишите как обычно.")
+        } else {
+            Step("1", "На компьютере нужен Node.js (nodejs.org). Скопируйте команду и выполните её в терминале (macOS, Linux, WSL или Git Bash).")
+            Button(onClick = {
+                clip.setText(androidx.compose.ui.text.AnnotatedString(com.ultracode.app.ai.ClaudeBridge.pcInstallCommand(vm.bridgeScript(), cc.apiKey)))
+                vm.toast = "Команда скопирована — отправьте её себе на компьютер"
+            }) { Text("Скопировать команду для ПК") }
+            Step("2", "Выполните claude и войдите в аккаунт, затем запустите мост командой из подсказки. Он покажет адрес вида http://192.168.x.x:8765.")
+            Step("3", "Впишите этот адрес сюда (телефон и компьютер должны быть в одной сети Wi-Fi).")
+            OutlinedTextField(
+                value = cc.baseUrl, onValueChange = { vm.updateProvider(cc.copy(baseUrl = it.trim())) },
+                label = { Text("Адрес моста") }, singleLine = true,
+                modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp),
+            )
+        }
+        OutlinedTextField(
+            value = s.ccFolder, onValueChange = { v -> vm.updateSettings { it.copy(ccFolder = v) } },
+            label = { Text("Папка проекта (в ~/projects)") }, singleLine = true,
+            supportingText = { Text("Если к чату подключён репозиторий — используется папка с его именем") },
+            modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp),
+        )
+        SwitchRow("Разрешить команды терминала", "Claude Code сможет запускать команды (сборка, git, npm)", s.ccAllowBash) { v ->
+            vm.updateSettings { it.copy(ccAllowBash = v) }
+        }
+    }
+}
+
+@Composable
+private fun Step(n: String, text: String) {
+    Row(verticalAlignment = Alignment.Top, modifier = Modifier.padding(top = 4.dp)) {
+        CookieBadge(size = 24.dp, container = MaterialTheme.colorScheme.secondaryContainer) {
+            Text(n, style = MaterialTheme.typography.labelMedium)
+        }
+        Spacer(Modifier.size(10.dp))
+        Text(text, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
     }
 }
