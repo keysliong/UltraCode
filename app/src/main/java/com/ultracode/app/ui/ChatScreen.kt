@@ -497,6 +497,7 @@ private fun InputBar(vm: AppViewModel) {
                 CookieButton(
                     onClick = { picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
                     size = 46.dp, lobes = 6,
+                    modifier = Modifier.padding(bottom = 9.dp),
                     container = MaterialTheme.colorScheme.secondaryContainer,
                 ) { Icon(Icons.Outlined.AddPhotoAlternate, "Фото") }
                 TextField(
@@ -518,6 +519,7 @@ private fun InputBar(vm: AppViewModel) {
                         else if (text.isNotBlank() || vm.attachments.isNotEmpty()) { vm.send(text); text = "" }
                     },
                     size = 52.dp, lobes = 9,
+                    modifier = Modifier.padding(bottom = 2.dp),
                     container = if (vm.running) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
                 ) {
                     Icon(if (vm.running) Icons.Filled.Stop else Icons.AutoMirrored.Filled.Send, if (vm.running) "Стоп" else "Отправить")
@@ -578,6 +580,12 @@ private fun HistoryDrawer(
             }
         }
         HorizontalDivider(Modifier.padding(horizontal = 24.dp, vertical = 8.dp))
+        val drawerCtx = LocalContext.current
+        NavigationDrawerItem(
+            label = { Text("Claude Code (по подписке)") },
+            icon = { Icon(Icons.Filled.AutoAwesome, null) },
+            selected = false, onClick = { openClaudeCode(drawerCtx) }, modifier = Modifier.padding(horizontal = 12.dp),
+        )
         NavigationDrawerItem(
             label = { Text(if (vm.settings.githubLogin.isNotBlank()) "GitHub · ${vm.settings.githubLogin}" else "Подключить GitHub") },
             icon = { Icon(Icons.Outlined.Code, null) },
@@ -671,4 +679,11 @@ private fun ModelPicker(vm: AppViewModel, onDismiss: () -> Unit, onSettings: () 
             }
         }
     }
+}
+
+/** Opens the official Claude app (Claude Code with your subscription) or claude.ai/code. */
+fun openClaudeCode(ctx: android.content.Context) {
+    val app = ctx.packageManager.getLaunchIntentForPackage("com.anthropic.claude")
+    if (app != null) runCatching { ctx.startActivity(app) }.onSuccess { return }
+    openUrl(ctx, "https://claude.ai/code")
 }

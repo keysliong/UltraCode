@@ -74,14 +74,37 @@ object Defaults {
 
     /** Free models on OpenRouter. The list can be refreshed from the app. */
     val freeModels = listOf(
+        // DeepSeek
         "deepseek/deepseek-chat-v3-0324:free",
+        "deepseek/deepseek-chat-v3.1:free",
         "deepseek/deepseek-r1-0528:free",
+        "deepseek/deepseek-r1:free",
+        "deepseek/deepseek-r1-distill-llama-70b:free",
+        "tngtech/deepseek-r1t2-chimera:free",
+        "microsoft/mai-ds-r1:free",
+        // GLM
         "z-ai/glm-4.5-air:free",
+        // Qwen
         "qwen/qwen3-coder:free",
+        "qwen/qwen3-235b-a22b:free",
+        "qwen/qwen3-30b-a3b:free",
+        "qwen/qwen-2.5-coder-32b-instruct:free",
+        // Kimi
         "moonshotai/kimi-k2:free",
+        // OpenAI open models
+        "openai/gpt-oss-120b:free",
         "openai/gpt-oss-20b:free",
+        // Mistral
+        "mistralai/devstral-small-2505:free",
+        "mistralai/mistral-small-3.2-24b-instruct:free",
+        // Meta
+        "meta-llama/llama-4-maverick:free",
         "meta-llama/llama-3.3-70b-instruct:free",
+        // Google
+        "google/gemini-2.0-flash-exp:free",
         "google/gemma-3-27b-it:free",
+        // NVIDIA
+        "nvidia/nemotron-nano-9b-v2:free",
     )
 
     val providers = listOf(
@@ -114,6 +137,9 @@ object Defaults {
         Preset("Groq", ProviderKind.OPENAI, "https://api.groq.com/openai/v1", "llama-3.3-70b-versatile, qwen/qwen3-32b", keyUrl = "https://console.groq.com/keys"),
         Preset("Gemini", ProviderKind.OPENAI, "https://generativelanguage.googleapis.com/v1beta/openai", "gemini-2.5-flash, gemini-2.5-pro", keyUrl = "https://aistudio.google.com/apikey"),
         Preset("Mistral", ProviderKind.OPENAI, "https://api.mistral.ai/v1", "codestral-latest, mistral-large-latest", keyUrl = "https://console.mistral.ai/api-keys"),
+        Preset("GitHub Models (бесплатно)", ProviderKind.OPENAI, "https://models.github.ai/inference", "openai/gpt-4.1, openai/gpt-4o, deepseek/DeepSeek-V3-0324, deepseek/DeepSeek-R1, meta/Llama-4-Maverick-17B-128E-Instruct-FP8, xai/grok-3-mini, mistral-ai/Codestral-2501", keyUrl = "https://github.com/settings/tokens"),
+        Preset("Cerebras (бесплатно)", ProviderKind.OPENAI, "https://api.cerebras.ai/v1", "qwen-3-coder-480b, gpt-oss-120b, llama-3.3-70b", keyUrl = "https://cloud.cerebras.ai"),
+        Preset("SambaNova (бесплатно)", ProviderKind.OPENAI, "https://api.sambanova.ai/v1", "DeepSeek-V3-0324, DeepSeek-R1, Meta-Llama-3.3-70B-Instruct", keyUrl = "https://cloud.sambanova.ai/apis"),
         Preset("Pollinations (без ключа)", ProviderKind.OPENAI, "https://text.pollinations.ai/openai", "openai, mistral, qwen-coder", keyOptional = true),
         Preset("Ollama (свой ПК)", ProviderKind.OPENAI, "http://192.168.0.2:11434/v1", "qwen2.5-coder, llama3.1", keyOptional = true),
         Preset("LM Studio", ProviderKind.OPENAI, "http://192.168.0.2:1234/v1", "local-model", keyOptional = true),

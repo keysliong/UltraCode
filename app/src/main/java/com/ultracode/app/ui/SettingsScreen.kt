@@ -32,6 +32,7 @@ import androidx.compose.material.icons.outlined.Palette
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.SmartToy
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -119,9 +120,17 @@ fun SettingsScreen(vm: AppViewModel, onBack: () -> Unit) {
             val claude = s.provider(Defaults.ANTHROPIC)
             if (claude != null) Section(Icons.Outlined.AutoAwesome, "Аккаунт Claude") {
                 Text(
-                    "Войдите в Claude с помощью API-ключа из консоли Anthropic (console.anthropic.com). " +
-                        "Ключ хранится только на этом телефоне.",
+                    "Claude Code по вашей подписке открывается в официальном приложении Claude. " +
+                        "API-ключ для работы внутри UltraCode хранится только на этом телефоне.",
                     style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Button(onClick = { openClaudeCode(ctx) }, modifier = Modifier.fillMaxWidth()) {
+                    Text("Открыть Claude Code по подписке")
+                }
+                Text(
+                    "Подписка Pro/Max работает в официальном приложении Claude и на claude.ai/code. " +
+                        "Внутри UltraCode Claude работает через API-ключ:",
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 KeyField("API-ключ Claude (sk-ant-…)", claude.apiKey) { vm.updateProvider(claude.copy(apiKey = it)) }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
