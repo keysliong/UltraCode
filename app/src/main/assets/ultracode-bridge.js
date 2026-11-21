@@ -76,6 +76,21 @@ async function handleChat(req, res) {
   if (!prompt) return json(res, 400, { error: 'empty prompt' });
 
   const cwd = projectDir(body.folder);
+  // Photos from UltraCode: save into the project so Claude Code can open them with its Read tool.
+  const imagePaths = [];
+  if (Array.isArray(body.images)) {
+    const dir = path.join(cwd, '.ultracode-images');
+    fs.mkdirSync(dir, { recursive: true });
+    body.images.slice(0, 10).forEach((img, i) => {
+      const ext = (path.extname(String(img.name || '')) || '.jpg').replace(/[^.a-z0-9]/gi, '');
+      const file = path.join(dir, 'img_' + Date.now() + '_' + i + ext);
+      fs.writeFileSync(file, Buffer.from(String(img.data || ''), 'base64'));
+      imagePaths.push(file);
+    });
+  }
+  const fullPrompt = imagePaths.length
+    ? 'Пользователь приложил изображения — сначала открой и посмотри их инструментом Read:\n' + imagePaths.map((p) => '- ' + p).join('\n') + '\n\n' + prompt
+    : prompt;
   const args = ['-p', '--output-format', 'stream-json', '--verbose', '--include-partial-messages'];
   if (body.model) args.push('--model', String(body.model));
   if (body.session) args.push('--resume', String(body.session));
@@ -130,7 +145,7 @@ async function handleChat(req, res) {
   // Client gone (Stop button / app closed) -> stop Claude Code.
   res.on('close', () => { if (!finished) { finished = true; child.kill('SIGTERM'); } });
 
-  child.stdin.end(prompt);
+  child.stdin.end(fullPrompt);
 }
 
 const server = http.createServer(async (req, res) => {

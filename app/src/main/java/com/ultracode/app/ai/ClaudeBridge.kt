@@ -52,6 +52,12 @@ object ClaudeBridge {
         } catch (e: IOException) { throw friendly(e, url) }
     }
 
+    /** Prompt that asks Claude Code to look at attached pictures with its Read tool. */
+    fun promptWithImages(prompt: String, paths: List<String>): String =
+        if (paths.isEmpty()) prompt
+        else "Пользователь приложил изображения — сначала открой и посмотри их инструментом Read:\n" +
+            paths.joinToString("\n") { "- $it" } + "\n\n" + prompt
+
     fun toolLabel(name: String, input: JsonObject?): Pair<String, WebSource?> {
         val d = input?.let {
             it["command"].str() ?: it["file_path"].str() ?: it["notebook_path"].str() ?: it["path"].str()
@@ -84,8 +90,17 @@ object ClaudeBridge {
         onText: (String) -> Unit,
         onTool: (String, WebSource?) -> Unit,
         onSession: (String) -> Unit,
+        images: List<java.io.File> = emptyList(),
     ): Result = withContext(Dispatchers.IO) {
         val body = buildJsonObject {
+            if (images.isNotEmpty()) put("images", kotlinx.serialization.json.buildJsonArray {
+                images.forEach { f ->
+                    add(buildJsonObject {
+                        put("name", f.name)
+                        put("data", android.util.Base64.encodeToString(f.readBytes(), android.util.Base64.NO_WRAP))
+                    })
+                }
+            })
             put("prompt", prompt)
             if (!session.isNullOrBlank()) put("session", session)
             put("model", model)

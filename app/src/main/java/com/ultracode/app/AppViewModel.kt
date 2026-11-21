@@ -641,8 +641,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     private suspend fun runClaudeCode(chat: Chat, p: ProviderConfig, model: String, sb: StringBuilder) {
         val last = chat.messages.lastOrNull { it.role == "user" }
-        var prompt = last?.text.orEmpty()
-        if (last != null && last.images.isNotEmpty()) prompt += "\n\n(К сообщению приложены фото, но в Claude Code через мост они пока не передаются.)"
+        val prompt = last?.text.orEmpty().ifBlank { if (last?.images?.isNotEmpty() == true) "Что на изображении?" else "" }
+        val images = last?.images.orEmpty().map { File(it) }.filter { it.exists() }
         val system = buildString {
             append(Prompts.design)
             chat.repo?.let { append("\n\nРепозиторий GitHub пользователя для этой задачи: https://github.com/").append(it) }
@@ -669,12 +669,12 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             viewModelScope.launch { chats.firstOrNull { it.id == chat.id }?.let { save(it.copy(ccSession = id)) } }
         }
         val res = if (p.baseUrl == Defaults.EMBEDDED) {
-            embedded.run(prompt, chat.ccSession, model, folder, system, settings.ccAllowBash, onText, onTool, onSession)
+            embedded.run(prompt, chat.ccSession, model, folder, system, settings.ccAllowBash, onText, onTool, onSession, images)
         } else {
             com.ultracode.app.ai.ClaudeBridge.run(
                 url = p.baseUrl, token = p.apiKey, prompt = prompt, session = chat.ccSession, model = model,
                 folder = folder, system = system, allowBash = settings.ccAllowBash,
-                onText = onText, onTool = onTool, onSession = onSession,
+                onText = onText, onTool = onTool, onSession = onSession, images = images,
             )
         }
         if (res.text.isNotBlank() && sb.isEmpty()) { sb.append(res.text); streamingText = sb.toString() }

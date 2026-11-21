@@ -436,11 +436,20 @@ class EmbeddedClaude(private val ctx: Context) {
     suspend fun run(
         prompt: String, session: String?, model: String, folder: String, system: String, allowBash: Boolean,
         onText: (String) -> Unit, onTool: (String, WebSource?) -> Unit, onSession: (String) -> Unit,
+        images: List<File> = emptyList(),
     ): ClaudeBridge.Result = withContext(Dispatchers.IO) {
         if (!installed) throw ApiException(0, "Claude Code не установлен. Настройки → Claude Code по подписке → Скачать Claude Code.")
         if (!loggedIn) throw ApiException(0, "Войдите в аккаунт Claude: Настройки → Claude Code по подписке → Войти в Claude.")
         val clean = folder.replace('\\', '/').split('/').filter { it.isNotBlank() && it != "." && it != ".." }.joinToString("/").ifEmpty { "ultracode" }
         File(root, "root/projects/$clean").mkdirs()
+        // Photos: copy into the project so Claude Code can open them with its Read tool.
+        val guestImages = images.mapIndexed { i, f ->
+            val dir = File(root, "root/projects/$clean/.ultracode-images").apply { mkdirs() }
+            val name = "img_${System.currentTimeMillis()}_$i.${f.extension.ifBlank { "jpg" }}"
+            f.copyTo(File(dir, name), overwrite = true)
+            "/root/projects/$clean/.ultracode-images/$name"
+        }
+        val fullPrompt = ClaudeBridge.promptWithImages(prompt, guestImages)
         val tools = mutableListOf("Read", "Edit", "Write", "MultiEdit", "Glob", "Grep", "LS", "TodoWrite", "WebFetch", "WebSearch", "NotebookEdit")
         if (allowBash) tools += "Bash"
         val args = mutableListOf("-p", "--output-format", "stream-json", "--verbose", "--include-partial-messages", "--model", model)
@@ -459,7 +468,7 @@ class EmbeddedClaude(private val ctx: Context) {
         coroutineScope {
             val watcher = launch { try { awaitCancellation() } finally { p.destroy() } }
             try {
-                p.outputStream.use { it.write(prompt.toByteArray()) }
+                p.outputStream.use { it.write(fullPrompt.toByteArray()) }
                 p.inputStream.bufferedReader().forEachLine { parser.line(it) }
                 p.waitFor()
             } finally {
