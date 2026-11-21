@@ -51,7 +51,12 @@ class EmbeddedClaude(private val ctx: Context) {
     /** Command line that runs [cmd] inside Alpine as fake root. */
     private fun prootCmd(cmd: List<String>, cwd: String = "/root", guestEnv: Map<String, String> = emptyMap()): List<String> {
         val fake = File(root, ".fake")
-        val binds = mutableListOf("-b", "/dev", "-b", "/proc", "-b", "/sys", "-b", "${root.absolutePath}/tmp:/dev/shm")
+        val binds = mutableListOf(
+            "-b", "/dev", "-b", "/proc", "-b", "/sys", "-b", "${root.absolutePath}/tmp:/dev/shm",
+            "-b", "/proc/self/fd:/dev/fd", "-b", "/proc/self/fd/0:/dev/stdin",
+            "-b", "/proc/self/fd/1:/dev/stdout", "-b", "/proc/self/fd/2:/dev/stderr",
+            "-b", "/dev/urandom:/dev/random",
+        )
         for (n in listOf("stat", "loadavg", "uptime", "vmstat", "version")) {
             val f = File(fake, n)
             if (f.exists()) binds += listOf("-b", "${f.absolutePath}:/proc/$n")
@@ -63,7 +68,8 @@ class EmbeddedClaude(private val ctx: Context) {
             "DISABLE_AUTOUPDATER" to "1", "USE_BUILTIN_RIPGREP" to "0",
             "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC" to "1",
         ) + guestEnv
-        return listOf(proot.absolutePath, "--kill-on-exit", "--link2symlink", "-0", "-r", root.absolutePath) + binds +
+        return listOf(proot.absolutePath, "--kill-on-exit", "--link2symlink", "-L", "--sysvipc",
+            "--kernel-release=6.2.1-ultracode", "-0", "-r", root.absolutePath) + binds +
             listOf("-w", cwd, "/usr/bin/env", "-i") + genv.map { "${it.key}=${it.value}" } + cmd
     }
 
@@ -134,37 +140,85 @@ class EmbeddedClaude(private val ctx: Context) {
         }
 
         if (!claudeBin.exists()) {
-            progress("Узнаю последнюю версию Claude Code…", null)
-            val meta = LlmClient.http.newCall(Request.Builder()
-                .url("https://registry.npmjs.org/@anthropic-ai/claude-code-linux-arm64-musl/latest").build()).execute().use {
-                if (!it.isSuccessful) throw ApiException(it.code, "npm недоступен (HTTP ${it.code})")
-                Storage.json.parseToJsonElement(it.body!!.string()).jsonObject
+            val free = android.os.StatFs(ctx.filesDir.absolutePath).availableBytes
+            if (free < 450L * 1024 * 1024) {
+                throw ApiException(0, "Мало места: нужно около 450 МБ свободной памяти, сейчас ${free / 1024 / 1024} МБ.")
             }
-            val url = meta["dist"]?.jsonObject?.get("tarball").str() ?: throw ApiException(0, "Не найден файл Claude Code в npm")
-            val mirrorUrl = url.replace("https://registry.npmjs.org/", "https://registry.npmmirror.com/")
-            val tgz = File(base, "claude-code.tgz")
-            val tmp = File(claudeBin.parentFile, "claude.part")
             claudeBin.parentFile?.mkdirs()
+            val tmp = File(claudeBin.parentFile, "claude.part")
+            var lastErr: Exception? = null
+            // 1) Official Claude Code storage (the same place the official installer downloads from).
             try {
-                download(url, tgz, progress)
+                downloadOfficial(tmp, progress)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (e: Exception) {
-                if (e is kotlinx.coroutines.CancellationException) throw e
-                progress("Основной сервер npm недоступен, пробую зеркало…", null)
-                download(mirrorUrl, tgz, progress)
+                lastErr = e
+                tmp.delete()
+                // 2) npm package (and its mirror).
+                for (registry in listOf("https://registry.npmjs.org", "https://registry.npmmirror.com")) {
+                    try {
+                        progress("Пробую другой источник: ${registry.substringAfter("//")}…", null)
+                        downloadNpm(registry, tmp, progress)
+                        lastErr = null
+                        break
+                    } catch (e2: kotlinx.coroutines.CancellationException) {
+                        throw e2
+                    } catch (e2: Exception) {
+                        lastErr = e2
+                        tmp.delete()
+                    }
+                }
             }
-            progress("Распаковываю Claude Code…", null)
-            try {
-                tgz.inputStream().buffered(1 shl 16).use { Tar.extract(GZIPInputStream(it, 1 shl 16), root, only = "package/claude", onlyTarget = tmp) }
-            } finally {
-                tgz.delete() // a broken archive must not block the next attempt
-            }
-            if (!tmp.exists() || tmp.length() < 1_000_000) throw ApiException(0, "Файл Claude Code не найден в архиве")
+            if (lastErr != null) throw ApiException(0, "Не удалось скачать Claude Code: ${lastErr.message}")
+            if (!tmp.exists() || tmp.length() < 1_000_000) throw ApiException(0, "Файл Claude Code повреждён, попробуйте ещё раз")
             Os.chmod(tmp.absolutePath, 0x1ed)
-            tmp.renameTo(claudeBin)
+            if (!tmp.renameTo(claudeBin)) throw ApiException(0, "Не удалось сохранить Claude Code")
         }
         progress("Проверяю Claude Code…", null)
         val v = version() ?: throw ApiException(0, "Claude Code установлен, но не запускается. Пришлите скриншот разработчику.")
         progress("Готово: $v", 1f)
+    }
+
+    private val gcs = "https://storage.googleapis.com/claude-code-dist-86c565f3-f756-42ad-8dfa-d59b1c096819/claude-code-releases"
+
+    private fun getText(url: String): String = dl.newCall(Request.Builder().url(url).build()).execute().use {
+        if (!it.isSuccessful) throw ApiException(it.code, "HTTP ${it.code} ($url)")
+        it.body!!.string()
+    }
+
+    /** Official build linux-arm64-musl + SHA-256 check against the release manifest. */
+    private suspend fun downloadOfficial(dest: File, progress: (String, Float?) -> Unit) = withContext(Dispatchers.IO) {
+        progress("Узнаю последнюю версию Claude Code…", null)
+        val version = getText("$gcs/latest").trim()
+        val manifest = Storage.json.parseToJsonElement(getText("$gcs/$version/manifest.json")).jsonObject
+        val plat = manifest["platforms"]?.jsonObject?.get("linux-arm64-musl")?.jsonObject
+        val sum = plat?.get("checksum").str()
+        download("$gcs/$version/linux-arm64-musl/claude", dest, progress)
+        if (sum != null) {
+            progress("Проверяю целостность файла…", null)
+            val md = java.security.MessageDigest.getInstance("SHA-256")
+            dest.inputStream().buffered(1 shl 16).use { input ->
+                val buf = ByteArray(1 shl 16)
+                while (true) { val n = input.read(buf); if (n < 0) break; md.update(buf, 0, n) }
+            }
+            val got = md.digest().joinToString("") { "%02x".format(it) }
+            if (!got.equals(sum, true)) { dest.delete(); throw ApiException(0, "Файл скачался с ошибкой (не совпала контрольная сумма)") }
+        }
+    }
+
+    /** npm package @anthropic-ai/claude-code-linux-arm64-musl (tgz) from [registry]. */
+    private suspend fun downloadNpm(registry: String, dest: File, progress: (String, Float?) -> Unit) = withContext(Dispatchers.IO) {
+        val meta = Storage.json.parseToJsonElement(getText("$registry/@anthropic-ai/claude-code-linux-arm64-musl/latest")).jsonObject
+        val url = meta["dist"]?.jsonObject?.get("tarball").str() ?: throw ApiException(0, "npm: нет файла")
+        val tgz = File(base, "claude-code.tgz")
+        download(url, tgz, progress)
+        progress("Распаковываю Claude Code…", null)
+        try {
+            tgz.inputStream().buffered(1 shl 16).use { Tar.extract(GZIPInputStream(it, 1 shl 16), root, only = "package/claude", onlyTarget = dest) }
+        } finally {
+            tgz.delete()
+        }
     }
 
     /** HTTP/1.1 only: long HTTP/2 downloads from the npm CDN get "stream was reset" on some networks. */
@@ -202,7 +256,7 @@ class EmbeddedClaude(private val ctx: Context) {
                             if (n < 0) break
                             out.write(buf, 0, n)
                             done += n
-                            val t = if (total > 0) total else 168_000_000L
+                            val t = if (total > 0) total else 365_000_000L
                             val pct = (done * 100 / t).toInt()
                             if (pct != lastPct) {
                                 lastPct = pct
@@ -245,7 +299,8 @@ class EmbeddedClaude(private val ctx: Context) {
     suspend fun login(onUrl: (String) -> Unit, code: CompletableDeferred<String>, status: (String) -> Unit) = withContext(Dispatchers.IO) {
         val p = start(listOf("/usr/bin/script", "-qfec", "stty cols 4000 rows 50 2>/dev/null; /usr/local/bin/claude setup-token", "/dev/null"))
         val ansi = Regex("\\u001B\\[[0-9;?]*[ -/]*[@-~]|\\u001B\\][^\\u0007]*\\u0007|\\u001B[()][0-9A-B]")
-        val urlRe = Regex("https://[a-z.]*claude\\.(ai|com)/\\S*oauth/authorize\\S+")
+        val urlRe = Regex("https://[a-z.]*claude\\.(ai|com)/[^\\s\\u001B\\u0007]*oauth/authorize[^\\s\\u001B\\u0007]+")
+        val osc8 = Regex("\\u001B]8;[^;\\u0007]*;(https://[a-z.]*claude\\.(?:ai|com)/[^\\u0007\\u001B]*oauth/authorize[^\\u0007\\u001B]*)")
         val tokenRe = Regex("sk-ant-oat[0-9]{2}-[A-Za-z0-9_\\-]{20,}")
         val buf = StringBuilder()
         var urlSent = false
@@ -261,10 +316,14 @@ class EmbeddedClaude(private val ctx: Context) {
                     val n = input.read(chunk)
                     if (n < 0) break
                     buf.append(String(chunk, 0, n, Charsets.UTF_8))
-                    val clean = buf.toString().replace(ansi, "").replace("\r", "")
-                    if (!urlSent) urlRe.find(clean.replace("\n", ""))?.let { m ->
+                    val raw = buf.toString()
+                    // Claude Code prints the link as a terminal hyperlink (OSC 8) and lays out text with
+                    // cursor moves instead of spaces, so read the link from the hyperlink sequence.
+                    val link = osc8.find(raw)?.groupValues?.get(1)
+                        ?: raw.replace("\r", "").lines().firstNotNullOfOrNull { l -> urlRe.find(l.replace(ansi, " "))?.value }
+                    if (!urlSent && link != null) {
                         urlSent = true
-                        onUrl(m.value.trimEnd('.', ')', ']', '"', '\''))
+                        onUrl(link.trimEnd('.', ')', ']', '"', '\''))
                         status("Войдите на открывшейся странице, скопируйте код и вставьте сюда.")
                         sender = launch(Dispatchers.IO) {
                             val c = code.await().trim()
@@ -274,7 +333,7 @@ class EmbeddedClaude(private val ctx: Context) {
                             status("Проверяю код…")
                         }
                     }
-                    tokenRe.find(clean.replace("\n", ""))?.let { m ->
+                    raw.replace("\r", "").lines().firstNotNullOfOrNull { l -> tokenRe.find(l.replace(ansi, " ")) }?.let { m ->
                         tokenFile.parentFile?.mkdirs()
                         tokenFile.writeText(m.value)
                         runCatching { Os.chmod(tokenFile.absolutePath, 0x180) }

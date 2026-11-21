@@ -58,8 +58,14 @@ class ClaudeStreamParser(
 
     fun failIfError(loginHint: String) {
         error?.let { msg ->
-            val hint = if (msg.contains("login", true) || msg.contains("API key", true) ||
-                msg.contains("auth", true) || msg.contains("token", true)) "\n\n$loginHint" else ""
+            val hint = when {
+                msg.contains("region", true) || msg.contains("not available in your country", true) ||
+                    msg.contains("unsupported_country", true) || msg.contains("Request not allowed", true) ->
+                    "\n\nClaude недоступен из вашей страны — включите VPN на телефоне и повторите."
+                msg.contains("login", true) || msg.contains("API key", true) ||
+                    msg.contains("auth", true) || msg.contains("token", true) -> "\n\n$loginHint"
+                else -> ""
+            }
             throw ApiException(0, msg.take(1500) + hint)
         }
     }

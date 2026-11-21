@@ -1,0 +1,74 @@
+name: Rehearse embedded Claude Code
+
+# Repeats, on a Linux machine, the exact steps UltraCode runs on the phone:
+# proot + Alpine + packages + official Claude Code (musl) + version + sign-in link + stream-json run.
+on:
+  push:
+    paths:
+      - 'app/src/main/java/com/ultracode/app/cc/**'
+      - '.github/workflows/rehearse.yml'
+  workflow_dispatch:
+
+jobs:
+  rehearse:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Install proot
+        run: sudo apt-get update -q && sudo apt-get install -y -q proot
+
+      - name: Alpine rootfs (same version as in the app)
+        run: |
+          R=$PWD/alpine; mkdir -p "$R"
+          curl -fsSL https://dl-cdn.alpinelinux.org/alpine/v3.20/releases/x86_64/alpine-minirootfs-3.20.3-x86_64.tar.gz | tar xz -C "$R"
+          printf 'nameserver 8.8.8.8\nnameserver 1.1.1.1\n' > "$R/etc/resolv.conf"
+          mkdir -p "$R/root/projects/ultracode" "$R/tmp"; chmod 1777 "$R/tmp"
+          echo "R=$R" >> "$GITHUB_ENV"
+
+      - name: proot launcher (same guest environment as the app)
+        run: |
+          cat > p.sh <<'EOF'
+          #!/bin/bash
+          exec proot --kill-on-exit --link2symlink -0 -r "$R" -b /dev -b /proc -b /sys -b "$R/tmp:/dev/shm" \
+            -b /proc/self/fd:/dev/fd -w "${CWD:-/root}" /usr/bin/env -i HOME=/root USER=root LANG=C.UTF-8 \
+            TERM=xterm-256color PATH=/usr/local/bin:/usr/local/sbin:/usr/bin:/usr/sbin:/bin:/sbin SHELL=/bin/bash \
+            TMPDIR=/tmp DISABLE_AUTOUPDATER=1 USE_BUILTIN_RIPGREP=0 CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1 "$@"
+          EOF
+          chmod +x p.sh
+          ./p.sh /bin/sh -c 'cat /etc/alpine-release; id'
+
+      - name: apk add (same packages as the app)
+        run: |
+          ./p.sh /sbin/apk add --no-cache --update-cache bash git ripgrep ca-certificates util-linux-misc libgcc libstdc++
+          ls -la "$R/bin/bash" "$R/usr/bin/script" "$R/usr/bin/rg" "$R/usr/bin/git"
+
+      - name: Official Claude Code (musl) + SHA-256 check
+        run: |
+          G=https://storage.googleapis.com/claude-code-dist-86c565f3-f756-42ad-8dfa-d59b1c096819/claude-code-releases
+          V=$(curl -fsSL "$G/latest"); echo "version $V"
+          SUM=$(curl -fsSL "$G/$V/manifest.json" | python3 -c "import json,sys;print(json.load(sys.stdin)['platforms']['linux-x64-musl']['checksum'])")
+          curl -fsSL -o "$R/usr/local/bin/claude" "$G/$V/linux-x64-musl/claude"
+          echo "$SUM  $R/usr/local/bin/claude" | sha256sum -c
+          chmod 755 "$R/usr/local/bin/claude"
+
+      - name: claude --version inside proot
+        run: ./p.sh /usr/local/bin/claude --version
+
+      - name: Sign-in link from setup-token (via script pty)
+        run: |
+          (sleep 20) | timeout 25 ./p.sh /usr/bin/script -qfec "stty cols 4000 rows 50 2>/dev/null; /usr/local/bin/claude setup-token" /dev/null > login.raw 2>&1 || true
+          python3 - <<'EOF'
+          import re
+          raw = open('login.raw', 'rb').read().decode('utf8', 'replace')
+          m = re.search(r'\x1B]8;[^;\x07]*;(https://[a-z.]*claude\.(?:ai|com)/[^\x07\x1B]*oauth/authorize[^\x07\x1B]*)', raw)
+          print('LINK:', m.group(1)[:90] if m else None)
+          assert m, raw[-3000:]
+          EOF
+
+      - name: claude -p stream-json (bad token on purpose -> must return a result event)
+        run: |
+          echo "hi" | CWD=/root/projects/ultracode ./p.sh /bin/sh -c 'export CLAUDE_CODE_OAUTH_TOKEN="sk-ant-oat01-invalid"; exec /usr/local/bin/claude "$@"' claude \
+            -p --output-format stream-json --verbose --include-partial-messages --model sonnet \
+            --permission-mode acceptEdits --allowedTools Read Bash > run.jsonl 2> run.err || true
+          echo "--- stdout"; head -c 3000 run.jsonl; echo; echo "--- stderr"; tail -c 1500 run.err
+          grep -q '"type":"result"' run.jsonl
