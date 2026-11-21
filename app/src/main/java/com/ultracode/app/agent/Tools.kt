@@ -66,6 +66,12 @@ class ToolBox(
                 """{"type":"object","properties":{"repo":$str},"required":["repo"]}"""))
             add(spec("github_job_log", "Получить лог упавших jobs запуска GitHub Actions, чтобы исправить ошибку сборки.",
                 """{"type":"object","properties":{"repo":$str,"run_id":$str},"required":["repo","run_id"]}"""))
+            add(spec("github_deploy_site", "Опубликовать сайт на GitHub Pages ОДНОЙ командой: создаёт публичный репозиторий (если нет), загружает файлы из папки рабочей области (там должен быть index.html) и включает Pages. Возвращает ссылку на сайт. Используй ВСЕГДА, когда пользователь хочет сайт — не проси его хостить самому.",
+                """{"type":"object","properties":{"name":{"type":"string","description":"Имя репозитория (латиница, без пробелов), например my-portfolio. Имя <логин>.github.io даст сайт в корне домена."},"folder":{"type":"string","description":"Подпапка проекта в рабочей папке с index.html"},"description":$str},"required":["name","folder"]}"""))
+            add(spec("github_enable_pages", "Включить GitHub Pages для существующего репозитория (публикация из ветки, корень или /docs).",
+                """{"type":"object","properties":{"repo":$str,"branch":$str,"path":{"type":"string","enum":["/","/docs"]}},"required":["repo"]}"""))
+            add(spec("github_pages_status", "Ссылка на сайт GitHub Pages и статус публикации (built / building / errored).",
+                """{"type":"object","properties":{"repo":$str},"required":["repo"]}"""))
             add(spec("github_latest_release", "Ссылки на файлы последнего релиза (APK, EXE и т.д.).",
                 """{"type":"object","properties":{"repo":$str},"required":["repo"]}"""))
         }
@@ -75,6 +81,7 @@ class ToolBox(
         val a = runCatching { json.parseToJsonElement(args.ifBlank { "{}" }).jsonObject }.getOrNull()
         val detail = a?.let { it["url"].str() ?: it["query"].str() ?: it["path"].str() ?: it["repo"].str() ?: it["name"].str() ?: it["question"].str() } ?: ""
         val icon = when {
+            name == "github_deploy_site" || name.contains("pages") -> "🚀"
             name == "web_search" -> "🔎"
             name == "web_fetch" -> "🌐"
             name == "write_file" -> "✏️"
@@ -147,6 +154,18 @@ class ToolBox(
                 }
                 "github_actions_status" -> g().actionRuns(repo())
                 "github_job_log" -> g().failedJobLogs(repo(), req("run_id"))
+                "github_deploy_site" -> {
+                    val folder = req("folder")
+                    val files = ws.walk(folder)
+                    if (files.isEmpty()) "В папке '$folder' нет файлов — сначала создай сайт (index.html и др.)"
+                    else if (files.none { it.equals("index.html", true) }) "В корне папки '$folder' нет index.html — GitHub Pages откроет именно его. Создай index.html."
+                    else {
+                        val prefix = segments(folder).joinToString("/").let { if (it.isEmpty()) "" else "$it/" }
+                        g().deploySite(req("name"), files.associateWith { ws.readBytes(prefix + it) ?: ByteArray(0) }, s("description") ?: "Сайт, созданный в UltraCode")
+                    }
+                }
+                "github_enable_pages" -> "GitHub Pages включён. Сайт: " + g().enablePages(repo(), s("branch"), s("path") ?: "/")
+                "github_pages_status" -> g().pagesStatus(repo())
                 "github_latest_release" -> g().latestRelease(repo())
                 else -> "Неизвестный инструмент $name"
             }
@@ -174,7 +193,10 @@ object Prompts {
         Ты умеешь делать полноценные приложения:
         • Android: Kotlin + Jetpack Compose + Gradle (Kotlin DSL), minSdk 26, AGP 8.7.3, Kotlin 2.0.21. gradle-wrapper.jar не нужен: в workflow используй actions/setup-java (17) и gradle/actions/setup-gradle@v4 с `gradle-version: '8.11.1'`, затем команду `gradle assembleDebug`.
         • ПК: Python + PyInstaller, Electron, Tauri, .NET/C#, C++ — с workflow для Windows/macOS/Linux (matrix).
-        • Веб: HTML/CSS/JS, React, Vite; публикация через GitHub Pages.
+        • Сайты: HTML/CSS/JS (или React/Vite с готовой сборкой). ТЫ САМ публикуешь сайт на GitHub Pages инструментом github_deploy_site
+          и даёшь пользователю готовую ссылку https://<логин>.github.io/<репозиторий>/. НИКОГДА не предлагай пользователю хостить сайт самому.
+          Для статического сайта используй относительные пути (./style.css), index.html в корне папки проекта.
+          Для React/Vite: собери статическую версию без сборщика (чистые HTML/CSS/JS) или добавь workflow, который собирает и деплоит в Pages.
         • Игры, Telegram/Discord-боты, скрипты, сервера.
 
         На телефоне нельзя компилировать, поэтому чтобы собрать приложение:
@@ -182,7 +204,8 @@ object Prompts {
         2. Добавь .github/workflows/build.yml, который собирает приложение и выкладывает APK/EXE через actions/upload-artifact и softprops/action-gh-release (permissions: contents: write).
         3. Создай репозиторий (github_create_repo), если его нет, и отправь проект github_push_workspace (folder = подпапка проекта).
         4. Проверь сборку github_actions_status; если упала — github_job_log, исправь файлы и отправь снова.
-        5. В конце дай ссылку на релиз (github_latest_release) и кратко объясни, что сделано.
+        5. В конце дай ссылку на релиз (github_latest_release) или на сайт (github_pages_status) и кратко объясни, что сделано.
+        Если GitHub не подключён — попроси пользователя нажать «Подключить GitHub» в меню (через ask_user), а не хостить вручную.
 
         Если нужна документация, свежие версии библиотек или решение ошибки — ищи в интернете (web_search, web_fetch).
         Если что-то неясно или есть важный выбор (название, дизайн, платформа) — спроси через ask_user, не гадай.

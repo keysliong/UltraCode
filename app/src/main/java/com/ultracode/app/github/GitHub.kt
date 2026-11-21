@@ -180,6 +180,64 @@ class GitHub(private val token: String) {
         return sb.toString().ifEmpty { "Упавших jobs нет" }
     }
 
+    suspend fun repoExists(repo: String): Boolean = try { obj("/repos/$repo"); true } catch (e: ApiException) {
+        if (e.code == 404) false else throw e
+    }
+
+    private fun pagesUrl(repo: String): String {
+        val owner = repo.substringBefore('/'); val name = repo.substringAfter('/')
+        return if (name.equals("$owner.github.io", true)) "https://${owner.lowercase()}.github.io/"
+        else "https://${owner.lowercase()}.github.io/$name/"
+    }
+
+    /** Turns on GitHub Pages for the repository (serving files from [branch] and [path]). */
+    suspend fun enablePages(repo: String, branch: String?, path: String = "/"): String {
+        val br = branch?.takeIf { it.isNotBlank() } ?: defaultBranch(repo)
+        val p = if (path == "/docs") "/docs" else "/"
+        val body = buildJsonObject {
+            put("source", buildJsonObject { put("branch", br); put("path", p) })
+        }
+        val o = try {
+            obj("/repos/$repo/pages", "POST", body)
+        } catch (e: ApiException) {
+            when (e.code) {
+                409 -> { call("/repos/$repo/pages", "PUT", body); runCatching { obj("/repos/$repo/pages") }.getOrNull() }
+                422 -> throw ApiException(422, "GitHub Pages не включается: ${e.message}. Для бесплатного аккаунта репозиторий должен быть публичным.")
+                else -> throw e
+            }
+        }
+        return o?.get("html_url").str() ?: pagesUrl(repo)
+    }
+
+    suspend fun pagesStatus(repo: String): String {
+        val info = try { obj("/repos/$repo/pages") } catch (e: ApiException) {
+            if (e.code == 404) return "GitHub Pages не включён для $repo" else throw e
+        }
+        val build = runCatching { obj("/repos/$repo/pages/builds/latest") }.getOrNull()
+        val status = build?.get("status").str() ?: info["status"].str() ?: "unknown"
+        val err = (build?.get("error") as? JsonObject)?.get("message").str()
+        return "Сайт: ${info["html_url"].str() ?: pagesUrl(repo)}\nСтатус публикации: $status" +
+            (if (status == "built") " (готово, сайт открывается)" else if (status == "building" || status == "queued") " (ещё публикуется, подожди 1–2 минуты)" else "") +
+            (err?.let { "\nОшибка: $it" } ?: "")
+    }
+
+    /** Creates a public repo if needed, pushes the site files and turns on Pages. Returns the site URL. */
+    suspend fun deploySite(name: String, files: Map<String, ByteArray>, description: String): String {
+        val repo = if (name.contains('/')) name else "${me()}/$name"
+        var created = false
+        if (!repoExists(repo)) { createRepo(repo.substringAfter('/'), private = false, description = description); created = true }
+        val all = files.toMutableMap()
+        if (".nojekyll" !in all) all[".nojekyll"] = ByteArray(0)
+        val push = pushFiles(repo, null, "Deploy site via UltraCode", all)
+        val url = enablePages(repo, null, "/")
+        return buildString {
+            if (created) append("Создан публичный репозиторий $repo\n")
+            append(push).append('\n')
+            append("GitHub Pages включён. Сайт: $url\n")
+            append("Первая публикация занимает 1–2 минуты. Проверить можно через github_pages_status.")
+        }
+    }
+
     suspend fun latestRelease(repo: String): String {
         val o = runCatching { obj("/repos/$repo/releases/latest") }.getOrNull() ?: return "Релизов нет"
         val assets = o["assets"]?.jsonArray?.joinToString("\n") {
