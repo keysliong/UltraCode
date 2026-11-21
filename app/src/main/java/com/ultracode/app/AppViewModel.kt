@@ -73,11 +73,26 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     /** "Model is busy, retrying…" etc. */
     var statusText by mutableStateOf<String?>(null); private set
 
+    private val busyWindowMs = 30 * 60 * 1000L
+
+    /** Free models shared by many people that are overloaded most of the time. */
+    private fun oftenBusyFamily(m: String) = listOf("gemma", "ling", "llama-3.2", "mistral-7b").any { m.contains(it, true) }
+
+    fun isBusy(m: String): Boolean = (settings.busyModels[m] ?: 0L) > System.currentTimeMillis() - busyWindowMs
+
+    private fun markBusy(m: String) = updateSettings { s ->
+        val now = System.currentTimeMillis()
+        s.copy(busyModels = (s.busyModels.filterValues { it > now - busyWindowMs * 4 }) + (m to now))
+    }
+
     private fun pickFree(providerId: String, tried: Set<String>, needTools: Boolean): String? {
         val p = settings.provider(providerId) ?: return null
         var free = p.models.filter { it.endsWith(":free") && it !in tried }
         if (needTools && p.toolModels.isNotEmpty()) free = free.filter { it in p.toolModels }.ifEmpty { free }
-        return preferredFallbacks.firstOrNull { it in free } ?: free.firstOrNull()
+        // Skip models that were overloaded recently, try "often busy" families last.
+        val ok = free.filter { !isBusy(it) }.ifEmpty { free }
+        val ranked = ok.sortedBy { if (oftenBusyFamily(it)) 1 else 0 }
+        return preferredFallbacks.firstOrNull { it in ranked && !isBusy(it) } ?: ranked.firstOrNull()
     }
 
     private fun shortName(m: String) = m.substringAfter('/').removeSuffix(":free")
@@ -145,7 +160,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                         "Он сбросится через сутки. Варианты: пополнить OpenRouter на 10$ (лимит станет 1000 в день) " +
                         "или подключить другую бесплатную нейросеть в настройках — GitHub Models, Groq, Gemini, Cerebras.")
                 attempt++
-                if (attempt <= 2) {
+                // A model that was overloaded recently: switch right away instead of waiting.
+                val knownBusy = isBusy(usedModel) && p.id == Defaults.OPENROUTER && settings.autoFallback
+                if (attempt <= 2 && !knownBusy) {
                     val wait = if (attempt == 1) 4 else 10
                     for (s in wait downTo 1) {
                         statusText = "⏳ ${shortName(usedModel)} перегружена, повтор через $s с…"
@@ -154,6 +171,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                     statusText = "Повторяю запрос…"
                     continue
                 }
+                markBusy(usedModel)
                 tried += usedModel
                 val next = if (p.id == Defaults.OPENROUTER && settings.autoFallback) pickFree(p.id, tried, tools.isNotEmpty()) else null
                 if (next == null || tried.size >= 5) throw com.ultracode.app.ai.ApiException(429,

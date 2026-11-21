@@ -688,7 +688,8 @@ private fun ModelPicker(vm: AppViewModel, onDismiss: () -> Unit, onSettings: () 
                         }
                     }
                 }
-                items(p.models.distinct(), key = { p.id + "/" + it }) { m ->
+                val ordered = p.models.distinct().sortedBy { if (vm.isBusy(it)) 1 else 0 }
+                items(ordered, key = { p.id + "/" + it }) { m ->
                     val selected = vm.settings.selectedProvider == p.id && vm.settings.selectedModel == m
                     ListItem(
                         headlineContent = { Text(shortModel(m), maxLines = 1, overflow = TextOverflow.Ellipsis) },
@@ -696,6 +697,7 @@ private fun ModelPicker(vm: AppViewModel, onDismiss: () -> Unit, onSettings: () 
                             if (m.endsWith(":free")) Column(horizontalAlignment = Alignment.End) {
                                 Text("free", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.tertiary)
                                 if (m in p.toolModels) Text("агент", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                                if (vm.isBusy(m)) Text("часто перегружена", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
                             }
                         },
                         leadingContent = {
