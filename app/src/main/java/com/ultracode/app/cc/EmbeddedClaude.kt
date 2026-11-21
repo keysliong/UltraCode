@@ -110,11 +110,26 @@ class EmbeddedClaude(private val ctx: Context) {
         File(root, "root/projects").mkdirs()
         writeFakeProc()
 
-        if (!File(root, "bin/bash").exists() || !File(root, "usr/bin/script").exists() || !File(root, "usr/bin/rg").exists()) {
-            progress("Устанавливаю пакеты Linux (bash, git, ripgrep)…", null)
-            val (code, out) = exec(listOf("/sbin/apk", "add", "--no-cache", "bash", "git", "ripgrep", "ca-certificates",
-                "util-linux-misc", "libgcc", "libstdc++", "curl", "openssh-client")) { progress("Пакеты: ${it.take(60)}", null) }
-            if (code != 0) throw ApiException(0, "Не удалось установить пакеты (код $code):\n${out.takeLast(800)}")
+        val needed = listOf("bin/bash", "usr/bin/script", "usr/bin/rg", "usr/bin/git")
+        if (needed.any { !File(root, it).exists() }) {
+            // Main CDN first, then mirrors (the CDN often drops downloads in some countries).
+            val mirrors = listOf("https://dl-cdn.alpinelinux.org/alpine", "https://mirror.yandex.ru/mirrors/alpine",
+                "https://mirrors.aliyun.com/alpine", "https://dl-cdn.alpinelinux.org/alpine")
+            var lastOut = ""
+            for ((i, mirror) in mirrors.withIndex()) {
+                File(root, "etc/apk/repositories").writeText("$mirror/v3.20/main\n$mirror/v3.20/community\n")
+                progress("Устанавливаю пакеты Linux (попытка ${i + 1}, ${mirror.substringAfter("//").substringBefore('/')})…", null)
+                val (code, out) = exec(listOf("/sbin/apk", "add", "--no-cache", "--update-cache",
+                    "bash", "git", "ripgrep", "ca-certificates", "util-linux-misc", "libgcc", "libstdc++")) {
+                    progress("Пакеты: ${it.take(60)}", null)
+                }
+                lastOut = out
+                if (code == 0 && needed.all { File(root, it).exists() }) break
+            }
+            if (needed.any { !File(root, it).exists() }) {
+                throw ApiException(0, "Не удалось скачать пакеты Linux — проверьте интернет и нажмите «Скачать» ещё раз.\n" +
+                    lastOut.lines().filter { it.contains("ERROR") }.distinct().takeLast(4).joinToString("\n"))
+            }
         }
 
         if (!claudeBin.exists()) {
