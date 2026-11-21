@@ -50,7 +50,7 @@ android {
         // proot binaries must be extracted to the native library dir, the only place Android lets apps execute files.
         jniLibs {
             useLegacyPackaging = true
-            keepDebugSymbols += setOf("**/libproot.so", "**/libproot-loader.so", "**/libtalloc.so")
+            keepDebugSymbols += setOf("**/libproot.so", "**/libproot-loader.so", "**/libtalloc.so", "**/libandroid-shmem.so")
         }
     }
     androidResources {
