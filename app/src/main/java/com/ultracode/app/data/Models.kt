@@ -52,6 +52,8 @@ data class Chat(
     val agent: Boolean = true,
     /** Claude Code session id (to continue the same conversation in the official CLI). */
     val ccSession: String? = null,
+    /** How many chat messages Claude Code has already seen (the rest is sent to it as a transcript). */
+    val ccSeen: Int = 0,
 )
 
 @Serializable

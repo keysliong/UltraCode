@@ -454,11 +454,21 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             val sb = StringBuilder()
             var failed = false
             usedModel = model
+            var prov = p
             try {
                 val chat = chats.first { it.id == chatId }
                 if (p.kind == com.ultracode.app.data.ProviderKind.CLAUDE_CODE) {
-                    runClaudeCode(chat, p, model, sb)
-                    return@launch
+                    try {
+                        runClaudeCode(chat, p, model, sb)
+                        return@launch
+                    } catch (e: com.ultracode.app.ai.ApiException) {
+                        // Claude subscription limit reached -> continue the same dialog with a free model.
+                        val fb = claudeLimitFallback(e) ?: throw e
+                        prov = fb.first
+                        usedModel = fb.second
+                        toast = "Лимит Claude закончился — диалог продолжает ${shortName(fb.second)} (видит всю переписку)"
+                        if (sb.isNotEmpty()) sb.append("\n\n")
+                    }
                 }
                 val convo = withContext(Dispatchers.IO) { history(chat) }.toMutableList()
                 val ws = workspace()
@@ -482,7 +492,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 while (true) {
                     if (sb.isNotEmpty() && !sb.endsWith("\n\n")) { sb.append("\n\n"); streamingText = sb.toString() }
                     val onDelta: (String) -> Unit = { d -> statusText = null; sb.append(d); streamingText = sb.toString() }
-                    val res = callModel(p, system, convo, tools, onDelta, tried, onToolsUnsupported = {
+                    val res = callModel(prov, system, convo, tools, onDelta, tried, onToolsUnsupported = {
                         tools = emptyList()
                         if (chat.agent) toast = "Модель ${shortName(usedModel)} не поддерживает инструменты — агент и интернет выключены"
                     })
@@ -510,7 +520,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                     if (c != null) {
                         val m = ChatMessage(
                             role = "assistant", text = sb.toString().trim().ifEmpty { "(пустой ответ)" },
-                            model = usedModel, provider = p.name, tools = liveTools.toList(), sources = liveSources.toList(), error = failed,
+                            model = usedModel, provider = prov.name, tools = liveTools.toList(), sources = liveSources.toList(), error = failed,
                         )
                         save(c.copy(messages = c.messages + m, updated = System.currentTimeMillis()))
                         if (!appVisible && !failed) Notifier.done(ctx, usedModel, m.text)
@@ -639,9 +649,36 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun bridgeScript(): String = ctx.assets.open("ultracode-bridge.js").use { it.readBytes().toString(Charsets.UTF_8) }
 
+    private fun isClaudeLimit(msg: String) = listOf(
+        "usage limit", "limit reached", "rate limit", "rate_limit", "5-hour", "weekly limit", "out of extra usage",
+        "limit will reset", "resets at", "overloaded", "429",
+    ).any { msg.contains(it, ignoreCase = true) }
+
+    /** If Claude Code hit the subscription limit, picks a free model (with tool support) to continue. */
+    private fun claudeLimitFallback(e: Exception): Pair<ProviderConfig, String>? {
+        if (!isClaudeLimit(e.message.orEmpty()) || !settings.autoFallback) return null
+        val free = settings.provider(Defaults.OPENROUTER)?.takeIf { it.apiKey.isNotBlank() } ?: return null
+        val model = pickFree(free.id, emptySet(), needTools = true) ?: return null
+        return free to model
+    }
+
+    /** Messages Claude Code has not seen yet (answered by other models), as a transcript. */
+    private fun unseenTranscript(chat: Chat): String {
+        val before = chat.messages.dropLast(1) // everything except the current question
+        val unseen = before.drop(chat.ccSeen.coerceAtMost(before.size))
+        if (unseen.isEmpty()) return ""
+        val text = unseen.filter { !it.error }.joinToString("\n\n") { m ->
+            if (m.role == "user") "Пользователь: ${m.text}" else "ИИ (${m.model ?: "другая модель"}): ${m.text}"
+        }.takeLast(20_000)
+        if (text.isBlank()) return ""
+        return "Контекст: эта переписка в UltraCode шла с другими нейросетями, продолжи её с учётом всего сказанного.\n" +
+            "--- начало переписки ---\n$text\n--- конец переписки ---\n\nНовое сообщение пользователя:\n"
+    }
+
     private suspend fun runClaudeCode(chat: Chat, p: ProviderConfig, model: String, sb: StringBuilder) {
         val last = chat.messages.lastOrNull { it.role == "user" }
-        val prompt = last?.text.orEmpty().ifBlank { if (last?.images?.isNotEmpty() == true) "Что на изображении?" else "" }
+        val prompt = unseenTranscript(chat) +
+            last?.text.orEmpty().ifBlank { if (last?.images?.isNotEmpty() == true) "Что на изображении?" else "" }
         val images = last?.images.orEmpty().map { File(it) }.filter { it.exists() }
         val system = buildString {
             append(Prompts.design)
@@ -678,6 +715,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             )
         }
         if (res.text.isNotBlank() && sb.isEmpty()) { sb.append(res.text); streamingText = sb.toString() }
+        // Claude Code has now seen everything up to its own answer (which is saved right after this).
+        chats.firstOrNull { it.id == chat.id }?.let { save(it.copy(ccSeen = it.messages.size + 1)) }
     }
 
     private fun history(chat: Chat): List<WireMessage> {
