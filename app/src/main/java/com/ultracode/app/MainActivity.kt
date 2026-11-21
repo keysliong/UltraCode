@@ -52,9 +52,10 @@ class MainActivity : ComponentActivity() {
                         label = "screen",
                     ) { s ->
                         when (s) {
-                            "settings" -> SettingsScreen(vm, onBack = { screen = "chat" })
+                            "settings" -> SettingsScreen(vm, onBack = { screen = "chat" }, onClaude = { screen = "claude" })
+                            "claude" -> com.ultracode.app.ui.ClaudeWebScreen(onBack = { screen = "chat" })
                             "repos" -> ReposScreen(vm, onBack = { screen = "chat" })
-                            else -> ChatScreen(vm, onSettings = { screen = "settings" }, onRepos = { screen = "repos" })
+                            else -> ChatScreen(vm, onSettings = { screen = "settings" }, onRepos = { screen = "repos" }, onClaude = { screen = "claude" })
                         }
                     }
                 }

@@ -115,7 +115,7 @@ import java.util.Date
 import java.util.Locale
 
 @Composable
-fun ChatScreen(vm: AppViewModel, onSettings: () -> Unit, onRepos: () -> Unit) {
+fun ChatScreen(vm: AppViewModel, onSettings: () -> Unit, onRepos: () -> Unit, onClaude: () -> Unit = {}) {
     val drawer = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
     val snack = remember { SnackbarHostState() }
@@ -139,6 +139,7 @@ fun ChatScreen(vm: AppViewModel, onSettings: () -> Unit, onRepos: () -> Unit) {
                 onNew = { vm.newChat(); scope.launch { drawer.close() } },
                 onSettings = { scope.launch { drawer.close() }; onSettings() },
                 onRepos = { scope.launch { drawer.close() }; onRepos() },
+                onClaude = { scope.launch { drawer.close() }; onClaude() },
             )
         },
     ) {
@@ -540,6 +541,7 @@ private fun HistoryDrawer(
     onNew: () -> Unit,
     onSettings: () -> Unit,
     onRepos: () -> Unit,
+    onClaude: () -> Unit,
 ) {
     var toDelete by remember { mutableStateOf<com.ultracode.app.data.Chat?>(null) }
     ModalDrawerSheet(drawerShape = RoundedCornerShape(topEnd = 32.dp, bottomEnd = 32.dp)) {
@@ -584,11 +586,10 @@ private fun HistoryDrawer(
             }
         }
         HorizontalDivider(Modifier.padding(horizontal = 24.dp, vertical = 8.dp))
-        val drawerCtx = LocalContext.current
         NavigationDrawerItem(
-            label = { Text("Claude Code (по подписке)") },
+            label = { Text("Claude Code · войти в аккаунт") },
             icon = { Icon(Icons.Filled.AutoAwesome, null) },
-            selected = false, onClick = { openClaudeCode(drawerCtx) }, modifier = Modifier.padding(horizontal = 12.dp),
+            selected = false, onClick = onClaude, modifier = Modifier.padding(horizontal = 12.dp),
         )
         NavigationDrawerItem(
             label = { Text(if (vm.settings.githubLogin.isNotBlank()) "GitHub · ${vm.settings.githubLogin}" else "Подключить GitHub") },

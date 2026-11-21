@@ -79,7 +79,7 @@ fun openUrl(ctx: android.content.Context, url: String) =
     runCatching { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
 
 @Composable
-fun SettingsScreen(vm: AppViewModel, onBack: () -> Unit) {
+fun SettingsScreen(vm: AppViewModel, onBack: () -> Unit, onClaude: () -> Unit = {}) {
     val ctx = LocalContext.current
     val s = vm.settings
     val scroll = TopAppBarDefaults.exitUntilCollapsedScrollBehavior(rememberTopAppBarState())
@@ -120,16 +120,15 @@ fun SettingsScreen(vm: AppViewModel, onBack: () -> Unit) {
             val claude = s.provider(Defaults.ANTHROPIC)
             if (claude != null) Section(Icons.Outlined.AutoAwesome, "Аккаунт Claude") {
                 Text(
-                    "Claude Code по вашей подписке открывается в официальном приложении Claude. " +
+                    "Нажмите «Войти в аккаунт Claude» — откроется сайт claude.ai, войдите в свой аккаунт, и Claude Code будет работать по вашей подписке прямо в UltraCode. " +
                         "API-ключ для работы внутри UltraCode хранится только на этом телефоне.",
                     style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                Button(onClick = { openClaudeCode(ctx) }, modifier = Modifier.fillMaxWidth()) {
-                    Text("Открыть Claude Code по подписке")
+                Button(onClick = onClaude, modifier = Modifier.fillMaxWidth()) {
+                    Text("Войти в аккаунт Claude")
                 }
                 Text(
-                    "Подписка Pro/Max работает в официальном приложении Claude и на claude.ai/code. " +
-                        "Внутри UltraCode Claude работает через API-ключ:",
+                    "Для чата UltraCode с Claude-моделями можно также указать API-ключ:",
                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 KeyField("API-ключ Claude (sk-ant-…)", claude.apiKey) { vm.updateProvider(claude.copy(apiKey = it)) }
