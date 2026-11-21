@@ -71,6 +71,13 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     /** "Model is busy, retrying…" etc. */
     var statusText by mutableStateOf<String?>(null); private set
 
+    private fun pickFree(providerId: String, tried: Set<String>, needTools: Boolean): String? {
+        val p = settings.provider(providerId) ?: return null
+        var free = p.models.filter { it.endsWith(":free") && it !in tried }
+        if (needTools && p.toolModels.isNotEmpty()) free = free.filter { it in p.toolModels }.ifEmpty { free }
+        return preferredFallbacks.firstOrNull { it in free } ?: free.firstOrNull()
+    }
+
     private fun shortName(m: String) = m.substringAfter('/').removeSuffix(":free")
 
     private val preferredFallbacks = listOf(
@@ -113,6 +120,23 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 if (!rateLimited && tools.isNotEmpty() && msg.contains("tool", true)) {
                     tools = emptyList(); onToolsUnsupported(); continue
                 }
+                // Model became paid or was removed from OpenRouter.
+                val gone = p.id == Defaults.OPENROUTER && (e.code == 402 || e.code == 404 ||
+                    msg.contains("No endpoints", true) || msg.contains("credits", true) ||
+                    msg.contains("not a valid model", true) || msg.contains("free period", true))
+                if (gone) {
+                    dropModel(p.id, usedModel)
+                    if (!settings.autoFallback) throw com.ultracode.app.ai.ApiException(e.code,
+                        "Модель ${shortName(usedModel)} больше не бесплатная (или удалена) — убрал её из списка. Выберите другую.")
+                    tried += usedModel
+                    val next = pickFree(p.id, tried, tools.isNotEmpty())
+                        ?: throw com.ultracode.app.ai.ApiException(e.code, "Модель ${shortName(usedModel)} больше не бесплатная, а других бесплатных не найдено. Нажмите ⟳ в списке моделей.")
+                    toast = "${shortName(usedModel)} больше не бесплатная — отвечает ${shortName(next)}"
+                    if (settings.selectedModel == usedModel) selectModel(p.id, next)
+                    usedModel = next
+                    attempt = 0
+                    continue
+                }
                 if (!rateLimited) throw e
                 if (msg.contains("per-day", true) || msg.contains("per day", true)) throw com.ultracode.app.ai.ApiException(429,
                     "Закончился дневной лимит бесплатных запросов OpenRouter (около 50 в день без пополнения баланса). " +
@@ -129,10 +153,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                     continue
                 }
                 tried += usedModel
-                val next = if (p.id == Defaults.OPENROUTER && settings.autoFallback) {
-                    val free = p.models.filter { it.endsWith(":free") && it !in tried }
-                    preferredFallbacks.firstOrNull { it in free } ?: free.firstOrNull()
-                } else null
+                val next = if (p.id == Defaults.OPENROUTER && settings.autoFallback) pickFree(p.id, tried, tools.isNotEmpty()) else null
                 if (next == null || tried.size >= 5) throw com.ultracode.app.ai.ApiException(429,
                     "Модель ${shortName(usedModel)} сейчас перегружена (HTTP 429 — слишком много запросов к бесплатной модели). " +
                         "Подождите минуту или выберите другую модель." +
@@ -150,6 +171,41 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             val list = withContext(Dispatchers.IO) { storage.loadChats() }
             chats.addAll(list)
         }
+        verifyFreeModels(silent = true)
+    }
+
+    /**
+     * Downloads the real price list from OpenRouter and keeps only models that cost $0.
+     * If the selected model is no longer free, switches to a free one.
+     */
+    fun verifyFreeModels(silent: Boolean = false) {
+        viewModelScope.launch {
+            loadingModels = true
+            try {
+                val free = LlmClient.freeModels()
+                if (free.isEmpty()) { if (!silent) toast = "OpenRouter не вернул бесплатных моделей"; return@launch }
+                val p = settings.provider(Defaults.OPENROUTER) ?: return@launch
+                val ids = free.map { it.id }
+                val removed = p.models.filter { it !in ids }
+                updateProvider(p.copy(models = ids, toolModels = free.filter { it.tools }.map { it.id }, verifiedAt = System.currentTimeMillis()))
+                if (settings.selectedProvider == Defaults.OPENROUTER && settings.selectedModel !in ids) {
+                    val next = preferredFallbacks.firstOrNull { it in ids } ?: ids.first()
+                    toast = "${shortName(settings.selectedModel)} больше не бесплатная — выбрана ${shortName(next)}"
+                    selectModel(Defaults.OPENROUTER, next)
+                } else if (!silent) {
+                    toast = "Бесплатных моделей: ${ids.size}" + if (removed.isNotEmpty()) " · убрано платных/удалённых: ${removed.size}" else ""
+                }
+            } catch (e: Exception) {
+                if (!silent) toast = "Не удалось проверить модели: ${e.message}"
+            } finally {
+                loadingModels = false
+            }
+        }
+    }
+
+    private fun dropModel(providerId: String, model: String) {
+        val p = settings.provider(providerId) ?: return
+        updateProvider(p.copy(models = p.models - model, toolModels = p.toolModels - model))
     }
 
     // ------------------------------------------------------------ settings
@@ -176,6 +232,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         updateSettings { it.copy(selectedProvider = providerId, selectedModel = model) }
 
     fun refreshModels(p: ProviderConfig) {
+        if (p.id == Defaults.OPENROUTER) { verifyFreeModels(); return }
         viewModelScope.launch {
             loadingModels = true
             try {
@@ -318,6 +375,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val p = settings.provider() ?: run { toast = "Выберите модель"; return }
         if (p.apiKey.isBlank() && !p.keyOptional) {
             toast = "Добавьте ключ для «${p.name}» в настройках"
+            return
+        }
+        if (p.id == Defaults.OPENROUTER && !settings.selectedModel.endsWith(":free")) {
+            toast = "«${settings.selectedModel}» — платная модель. Выберите модель с пометкой free"
             return
         }
         var chat = current ?: newChat()

@@ -18,6 +18,10 @@ data class ProviderConfig(
     val builtin: Boolean = false,
     val keyOptional: Boolean = false,
     val keyUrl: String = "",
+    /** Models that support tools (agent mode). Filled from OpenRouter. */
+    val toolModels: List<String> = emptyList(),
+    /** When the free list was last verified. */
+    val verifiedAt: Long = 0,
 )
 
 @Serializable
@@ -143,9 +147,9 @@ object Defaults {
         Preset("Groq", ProviderKind.OPENAI, "https://api.groq.com/openai/v1", "llama-3.3-70b-versatile, qwen/qwen3-32b", keyUrl = "https://console.groq.com/keys"),
         Preset("Gemini", ProviderKind.OPENAI, "https://generativelanguage.googleapis.com/v1beta/openai", "gemini-2.5-flash, gemini-2.5-pro", keyUrl = "https://aistudio.google.com/apikey"),
         Preset("Mistral", ProviderKind.OPENAI, "https://api.mistral.ai/v1", "codestral-latest, mistral-large-latest", keyUrl = "https://console.mistral.ai/api-keys"),
-        Preset("GitHub Models (бесплатно)", ProviderKind.OPENAI, "https://models.github.ai/inference", "openai/gpt-4.1, openai/gpt-4o, deepseek/DeepSeek-V3-0324, deepseek/DeepSeek-R1, meta/Llama-4-Maverick-17B-128E-Instruct-FP8, xai/grok-3-mini, mistral-ai/Codestral-2501", keyUrl = "https://github.com/settings/tokens"),
-        Preset("Cerebras (бесплатно)", ProviderKind.OPENAI, "https://api.cerebras.ai/v1", "qwen-3-coder-480b, gpt-oss-120b, llama-3.3-70b", keyUrl = "https://cloud.cerebras.ai"),
-        Preset("SambaNova (бесплатно)", ProviderKind.OPENAI, "https://api.sambanova.ai/v1", "DeepSeek-V3-0324, DeepSeek-R1, Meta-Llama-3.3-70B-Instruct", keyUrl = "https://cloud.sambanova.ai/apis"),
+        Preset("GitHub Models (бесплатный лимит)", ProviderKind.OPENAI, "https://models.github.ai/inference", "openai/gpt-4.1, openai/gpt-4o, deepseek/DeepSeek-V3-0324, deepseek/DeepSeek-R1, meta/Llama-4-Maverick-17B-128E-Instruct-FP8, xai/grok-3-mini, mistral-ai/Codestral-2501", keyUrl = "https://github.com/settings/tokens"),
+        Preset("Cerebras (бесплатный лимит)", ProviderKind.OPENAI, "https://api.cerebras.ai/v1", "qwen-3-coder-480b, gpt-oss-120b, llama-3.3-70b", keyUrl = "https://cloud.cerebras.ai"),
+        Preset("SambaNova (бесплатный лимит)", ProviderKind.OPENAI, "https://api.sambanova.ai/v1", "DeepSeek-V3-0324, DeepSeek-R1, Meta-Llama-3.3-70B-Instruct", keyUrl = "https://cloud.sambanova.ai/apis"),
         Preset("Pollinations (без ключа)", ProviderKind.OPENAI, "https://text.pollinations.ai/openai", "openai, mistral, qwen-coder", keyOptional = true),
         Preset("Ollama (свой ПК)", ProviderKind.OPENAI, "http://192.168.0.2:11434/v1", "qwen2.5-coder, llama3.1", keyOptional = true),
         Preset("LM Studio", ProviderKind.OPENAI, "http://192.168.0.2:1234/v1", "local-model", keyOptional = true),

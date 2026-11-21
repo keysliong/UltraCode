@@ -42,7 +42,7 @@ class Storage(context: Context) {
             if (i < 0) list.add(0, b)
             else list[i] = list[i].copy(
                 name = b.name, kind = b.kind, builtin = true, keyUrl = b.keyUrl,
-                models = if (b.id == Defaults.OPENROUTER) (list[i].models + b.models).distinct() else list[i].models.ifEmpty { b.models },
+                models = if (b.id == Defaults.OPENROUTER && list[i].verifiedAt == 0L) b.models else list[i].models.ifEmpty { b.models },
             )
         }
         return s.copy(providers = list)

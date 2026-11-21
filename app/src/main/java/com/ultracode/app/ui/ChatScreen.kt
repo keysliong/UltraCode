@@ -643,7 +643,10 @@ private fun ModelPicker(vm: AppViewModel, onDismiss: () -> Unit, onSettings: () 
                     ListItem(
                         headlineContent = { Text(shortModel(m), maxLines = 1, overflow = TextOverflow.Ellipsis) },
                         trailingContent = {
-                            if (m.endsWith(":free")) Text("free", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.tertiary)
+                            if (m.endsWith(":free")) Column(horizontalAlignment = Alignment.End) {
+                                Text("free", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.tertiary)
+                                if (m in p.toolModels) Text("агент", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                            }
                         },
                         leadingContent = {
                             CookieBadge(

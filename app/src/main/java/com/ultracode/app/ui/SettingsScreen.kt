@@ -143,7 +143,7 @@ fun SettingsScreen(vm: AppViewModel, onBack: () -> Unit) {
             if (free != null) Section(Icons.Outlined.Hub, "Бесплатные модели") {
                 Text(
                     "DeepSeek, GLM, Qwen Coder, Kimi, Llama, Gemma и другие бесплатно через OpenRouter. " +
-                        "Нужен бесплатный ключ (регистрация за минуту).",
+                        "Список проверяется по реальным ценам OpenRouter при каждом запуске: платные модели убираются автоматически. Нужен бесплатный ключ.",
                     style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 KeyField("Ключ OpenRouter (sk-or-…)", free.apiKey) { vm.updateProvider(free.copy(apiKey = it)) }
@@ -154,7 +154,7 @@ fun SettingsScreen(vm: AppViewModel, onBack: () -> Unit) {
                     TextButton(onClick = { openUrl(ctx, free.keyUrl) }) { Text("Получить ключ") }
                     TextButton(onClick = { vm.refreshModels(free) }, enabled = !vm.loadingModels) {
                         Icon(Icons.Outlined.Refresh, null, Modifier.size(18.dp)); Spacer(Modifier.size(6.dp))
-                        Text("Обновить список (${free.models.size})")
+                        Text("Проверить бесплатные (${free.models.size})")
                     }
                 }
             }

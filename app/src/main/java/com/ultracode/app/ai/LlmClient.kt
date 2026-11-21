@@ -313,7 +313,32 @@ object LlmClient {
             if (!r.isSuccessful) throw ApiException(r.code, "HTTP ${r.code}: " + errorFromBody(s))
             val data = json.parseToJsonElement(s).jsonObject["data"]?.jsonArray ?: JsonArray(emptyList())
             val ids = data.mapNotNull { (it as? JsonObject)?.get("id").str() }
-            if (p.baseUrl.contains("openrouter")) ids.filter { it.endsWith(":free") }.sorted() else ids
+            if (p.baseUrl.contains("openrouter")) parseFree(data).map { it.id } else ids
+        }
+    }
+
+    data class FreeModel(val id: String, val tools: Boolean)
+
+    /** Only models whose real price on OpenRouter is $0 for input AND output. Tool-capable models first. */
+    private fun parseFree(data: JsonArray): List<FreeModel> = data.mapNotNull { el ->
+        val o = el as? JsonObject ?: return@mapNotNull null
+        val id = o["id"].str() ?: return@mapNotNull null
+        val pr = o["pricing"] as? JsonObject ?: return@mapNotNull null
+        fun price(k: String) = pr[k].str()?.toDoubleOrNull()
+        val prompt = price("prompt"); val completion = price("completion")
+        val request = price("request") ?: 0.0
+        if (prompt != 0.0 || completion != 0.0 || request != 0.0) return@mapNotNull null
+        if (!id.endsWith(":free")) return@mapNotNull null
+        val tools = (o["supported_parameters"] as? JsonArray)?.any { it.str() == "tools" } ?: false
+        FreeModel(id, tools)
+    }.sortedWith(compareBy({ !it.tools }, { it.id }))
+
+    /** Verified free models on OpenRouter (no key needed). */
+    suspend fun freeModels(): List<FreeModel> = withContext(Dispatchers.IO) {
+        http.newCall(Request.Builder().url("https://openrouter.ai/api/v1/models").build()).execute().use { r ->
+            val s = r.body?.string().orEmpty()
+            if (!r.isSuccessful) throw ApiException(r.code, "HTTP ${r.code}")
+            parseFree(json.parseToJsonElement(s).jsonObject["data"]?.jsonArray ?: JsonArray(emptyList()))
         }
     }
 }
