@@ -120,7 +120,7 @@ fun SettingsScreen(vm: AppViewModel, onBack: () -> Unit, onClaude: () -> Unit = 
             val claude = s.provider(Defaults.ANTHROPIC)
             if (claude != null) Section(Icons.Outlined.AutoAwesome, "Аккаунт Claude") {
                 Text(
-                    "Нажмите «Войти в аккаунт Claude» — откроется сайт claude.ai, войдите в свой аккаунт, и Claude Code будет работать по вашей подписке прямо в UltraCode. " +
+                    "Нажмите «Войти в аккаунт Claude» — откроется claude.ai поверх UltraCode. Войдите (можно через Google), и Claude Code будет работать по вашей подписке. " +
                         "API-ключ для работы внутри UltraCode хранится только на этом телефоне.",
                     style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

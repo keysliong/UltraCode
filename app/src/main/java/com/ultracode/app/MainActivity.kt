@@ -52,15 +52,18 @@ class MainActivity : ComponentActivity() {
                         label = "screen",
                     ) { s ->
                         when (s) {
-                            "settings" -> SettingsScreen(vm, onBack = { screen = "chat" }, onClaude = { screen = "claude" })
-                            "claude" -> com.ultracode.app.ui.ClaudeWebScreen(onBack = { screen = "chat" })
+                            "settings" -> SettingsScreen(vm, onBack = { screen = "chat" }, onClaude = { openClaude() })
                             "repos" -> ReposScreen(vm, onBack = { screen = "chat" })
-                            else -> ChatScreen(vm, onSettings = { screen = "settings" }, onRepos = { screen = "repos" }, onClaude = { screen = "claude" })
+                            else -> ChatScreen(vm, onSettings = { screen = "settings" }, onRepos = { screen = "repos" }, onClaude = { openClaude() })
                         }
                     }
                 }
             }
         }
+    }
+
+    private fun openClaude() {
+        com.ultracode.app.ui.openClaudeCode(this)
     }
 
     override fun onStart() { super.onStart(); vm.appVisible = true }

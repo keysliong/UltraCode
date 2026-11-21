@@ -689,12 +689,6 @@ private fun ModelPicker(vm: AppViewModel, onDismiss: () -> Unit, onSettings: () 
     }
 }
 
-/** Opens the official Claude app (Claude Code with your subscription) or claude.ai/code. */
-fun openClaudeCode(ctx: android.content.Context) {
-    val app = ctx.packageManager.getLaunchIntentForPackage("com.anthropic.claude")
-    if (app != null) runCatching { ctx.startActivity(app) }.onSuccess { return }
-    openUrl(ctx, "https://claude.ai/code")
-}
 
 @Composable
 private fun SourcesCard(sources: List<com.ultracode.app.data.WebSource>, streaming: Boolean) {
