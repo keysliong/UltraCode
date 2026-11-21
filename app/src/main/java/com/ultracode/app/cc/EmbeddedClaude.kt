@@ -352,6 +352,9 @@ class EmbeddedClaude(private val ctx: Context) {
         var urlSent = false
         var codeSent = false
         var sender: kotlinx.coroutines.Job? = null
+        var codeMark = 0
+        var timedOut = false
+        var oauthError: String? = null
         try {
             coroutineScope {
                 val watcher = launch { try { awaitCancellation() } finally { p.destroy() } }
@@ -361,7 +364,7 @@ class EmbeddedClaude(private val ctx: Context) {
                 while (true) {
                     val n = input.read(chunk)
                     if (n < 0) break
-                    buf.append(String(chunk, 0, n, Charsets.UTF_8))
+                    synchronized(buf) { buf.append(String(chunk, 0, n, Charsets.UTF_8)) }
                     val raw = buf.toString()
                     // Claude Code prints the link as a terminal hyperlink (OSC 8) and lays out text with
                     // cursor moves instead of spaces, so read the link from the hyperlink sequence.
@@ -372,11 +375,19 @@ class EmbeddedClaude(private val ctx: Context) {
                         onUrl(link.trimEnd('.', ')', ']', '"', '\''))
                         status("Войдите на открывшейся странице, скопируйте код и вставьте сюда.")
                         sender = launch(Dispatchers.IO) {
-                            val c = code.await().trim()
+                            // Pasted codes often carry spaces / line breaks.
+                            val c = code.await().replace(Regex("\\s+"), "")
+                            codeMark = synchronized(buf) { buf.length }
                             codeSent = true
-                            p.outputStream.write((c + "\r").toByteArray())
+                            p.outputStream.write(c.toByteArray())
+                            p.outputStream.flush()
+                            kotlinx.coroutines.delay(400)
+                            p.outputStream.write("\r".toByteArray())
                             p.outputStream.flush()
                             status("Проверяю код…")
+                            // Do not wait forever if the exchange hangs.
+                            kotlinx.coroutines.delay(120_000)
+                            if (!loggedIn) { timedOut = true; p.destroy() }
                         }
                     }
                     raw.replace("\r", "").lines().firstNotNullOfOrNull { l -> tokenRe.find(l.replace(ansi, " ")) }?.let { m ->
@@ -388,7 +399,19 @@ class EmbeddedClaude(private val ctx: Context) {
                         p.destroy()
                         return@coroutineScope
                     }
-                    if (buf.length > 200_000) buf.delete(0, 100_000)
+                    // Claude Code reports a rejected code as "OAuth error: ..." and waits for Enter.
+                    if (codeSent) {
+                        val after = raw.substring(codeMark.coerceAtMost(raw.length)).replace(ansi, " ")
+                            .replace(Regex("[─│╭╮╰╯]+"), " ").replace(Regex("\\s+"), " ")
+                        Regex("(?:OAuth error|Error|Ошибка)[:\\s]+(.{0,220})").find(after)?.let { m ->
+                            oauthError = m.groupValues[1].substringBefore("Press Enter").trim()
+                            sender?.cancel()
+                            watcher.cancel()
+                            p.destroy()
+                            return@coroutineScope
+                        }
+                    }
+                    if (buf.length > 200_000) synchronized(buf) { buf.delete(0, 100_000); codeMark = (codeMark - 100_000).coerceAtLeast(0) }
                 }
                 sender?.cancel()
                 watcher.cancel()
@@ -397,8 +420,15 @@ class EmbeddedClaude(private val ctx: Context) {
             p.destroy()
         }
         if (!loggedIn) {
-            val tail = buf.toString().replace(ansi, "").replace("\r", "").lines().filter { it.isNotBlank() }.takeLast(6).joinToString("\n")
-            throw ApiException(0, if (codeSent) "Вход не удался. Проверьте код и попробуйте ещё раз.\n$tail" else "Claude Code не выдал ссылку для входа.\n$tail")
+            val tail = buf.toString().replace("\r", "").lines().map { it.replace(ansi, " ").replace(Regex("\\s+"), " ").trim() }
+                .filter { it.isNotBlank() && !it.all { ch -> ch in "─│╭╮╰╯ " } }.takeLast(6).joinToString("\n")
+            throw ApiException(0, when {
+                oauthError != null -> "Claude не принял код: он неполный, устарел или уже использован. " +
+                    "Нажмите «Войти в Claude» ещё раз, на странице нажмите «Копировать код» и вставьте его целиком.\n\n($oauthError)"
+                timedOut -> "Claude Code не ответил за 2 минуты после ввода кода. Проверьте интернет (из России нужен VPN) и попробуйте снова.\n\n$tail"
+                codeSent -> "Вход не удался. Попробуйте ещё раз.\n\n$tail"
+                else -> "Claude Code не выдал ссылку для входа.\n\n$tail"
+            })
         }
     }
 
