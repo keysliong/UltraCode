@@ -66,6 +66,85 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     private var job: Job? = null
 
+    /** Model that is actually answering now (can change on automatic fallback). */
+    var usedModel by mutableStateOf(""); private set
+    /** "Model is busy, retrying…" etc. */
+    var statusText by mutableStateOf<String?>(null); private set
+
+    private fun shortName(m: String) = m.substringAfter('/').removeSuffix(":free")
+
+    private val preferredFallbacks = listOf(
+        "qwen/qwen3-coder:free",
+        "z-ai/glm-4.5-air:free",
+        "openai/gpt-oss-120b:free",
+        "moonshotai/kimi-k2:free",
+        "meta-llama/llama-3.3-70b-instruct:free",
+        "mistralai/mistral-small-3.2-24b-instruct:free",
+        "deepseek/deepseek-chat-v3.1:free",
+        "qwen/qwen3-235b-a22b:free",
+        "google/gemini-2.0-flash-exp:free",
+    )
+
+    /**
+     * Calls the model with automatic retries on rate limits (HTTP 429 / overloaded)
+     * and, for free OpenRouter models, automatic switch to another free model.
+     */
+    private suspend fun callModel(
+        p: ProviderConfig,
+        system: String,
+        convo: List<WireMessage>,
+        toolsIn: List<com.ultracode.app.ai.ToolSpec>,
+        onDelta: (String) -> Unit,
+        tried: MutableSet<String>,
+        onToolsUnsupported: () -> Unit,
+    ): com.ultracode.app.ai.TurnResult {
+        var tools = toolsIn
+        var attempt = 0
+        var streamed = false
+        val delta: (String) -> Unit = { streamed = true; onDelta(it) }
+        while (true) {
+            try {
+                return LlmClient.complete(p, usedModel, system, convo, tools, delta)
+            } catch (e: com.ultracode.app.ai.ApiException) {
+                if (streamed) throw e
+                val msg = e.message ?: ""
+                val rateLimited = e.code == 429 || e.code == 529 || e.code == 503 || e.code == 502 ||
+                    msg.contains("rate", true) || msg.contains("overloaded", true) || msg.contains("temporarily", true)
+                if (!rateLimited && tools.isNotEmpty() && msg.contains("tool", true)) {
+                    tools = emptyList(); onToolsUnsupported(); continue
+                }
+                if (!rateLimited) throw e
+                if (msg.contains("per-day", true) || msg.contains("per day", true)) throw com.ultracode.app.ai.ApiException(429,
+                    "Закончился дневной лимит бесплатных запросов OpenRouter (около 50 в день без пополнения баланса). " +
+                        "Он сбросится через сутки. Варианты: пополнить OpenRouter на 10$ (лимит станет 1000 в день) " +
+                        "или подключить другую бесплатную нейросеть в настройках — GitHub Models, Groq, Gemini, Cerebras.")
+                attempt++
+                if (attempt <= 2) {
+                    val wait = if (attempt == 1) 4 else 10
+                    for (s in wait downTo 1) {
+                        statusText = "⏳ ${shortName(usedModel)} перегружена, повтор через $s с…"
+                        kotlinx.coroutines.delay(1000)
+                    }
+                    statusText = "Повторяю запрос…"
+                    continue
+                }
+                tried += usedModel
+                val next = if (p.id == Defaults.OPENROUTER && settings.autoFallback) {
+                    val free = p.models.filter { it.endsWith(":free") && it !in tried }
+                    preferredFallbacks.firstOrNull { it in free } ?: free.firstOrNull()
+                } else null
+                if (next == null || tried.size >= 5) throw com.ultracode.app.ai.ApiException(429,
+                    "Модель ${shortName(usedModel)} сейчас перегружена (HTTP 429 — слишком много запросов к бесплатной модели). " +
+                        "Подождите минуту или выберите другую модель." +
+                        if (p.id == Defaults.OPENROUTER && !settings.autoFallback) " Можно включить «Автозамена занятой модели» в настройках." else "")
+                toast = "${shortName(usedModel)} перегружена — отвечает ${shortName(next)}"
+                usedModel = next
+                attempt = 0
+                statusText = "Переключаюсь на ${shortName(next)}…"
+            }
+        }
+    }
+
     init {
         viewModelScope.launch {
             val list = withContext(Dispatchers.IO) { storage.loadChats() }
@@ -272,6 +351,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             liveSources.clear()
             val sb = StringBuilder()
             var failed = false
+            usedModel = model
             try {
                 val chat = chats.first { it.id == chatId }
                 val convo = withContext(Dispatchers.IO) { history(chat) }.toMutableList()
@@ -291,20 +371,15 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                     }
                     if (settings.systemPrompt.isNotBlank()) append("\n\nИнструкции пользователя:\n").append(settings.systemPrompt)
                 }
+                val tried = mutableSetOf<String>()
                 var steps = 0
                 while (true) {
                     if (sb.isNotEmpty() && !sb.endsWith("\n\n")) { sb.append("\n\n"); streamingText = sb.toString() }
-                    val onDelta: (String) -> Unit = { d -> sb.append(d); streamingText = sb.toString() }
-                    val res = try {
-                        LlmClient.complete(p, model, system, convo, tools, onDelta)
-                    } catch (e: com.ultracode.app.ai.ApiException) {
-                        // Model without tool support: answer without tools.
-                        if (tools.isNotEmpty() && sb.isEmpty() && (e.message ?: "").contains("tool", ignoreCase = true)) {
-                            tools = emptyList()
-                            if (chat.agent) toast = "Модель $model не поддерживает инструменты — агент и интернет выключены"
-                            LlmClient.complete(p, model, system, convo, tools, onDelta)
-                        } else throw e
-                    }
+                    val onDelta: (String) -> Unit = { d -> statusText = null; sb.append(d); streamingText = sb.toString() }
+                    val res = callModel(p, system, convo, tools, onDelta, tried, onToolsUnsupported = {
+                        tools = emptyList()
+                        if (chat.agent) toast = "Модель ${shortName(usedModel)} не поддерживает инструменты — агент и интернет выключены"
+                    })
                     convo += WireMessage("assistant", listOf(Part.Text(res.text)), toolCalls = res.toolCalls)
                     if (res.toolCalls.isEmpty() || tools.isEmpty()) break
                     if (++steps > settings.maxSteps) {
@@ -329,12 +404,13 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                     if (c != null) {
                         val m = ChatMessage(
                             role = "assistant", text = sb.toString().trim().ifEmpty { "(пустой ответ)" },
-                            model = model, provider = p.name, tools = liveTools.toList(), sources = liveSources.toList(), error = failed,
+                            model = usedModel, provider = p.name, tools = liveTools.toList(), sources = liveSources.toList(), error = failed,
                         )
                         save(c.copy(messages = c.messages + m, updated = System.currentTimeMillis()))
-                        if (!appVisible && !failed) Notifier.done(ctx, model, m.text)
+                        if (!appVisible && !failed) Notifier.done(ctx, usedModel, m.text)
                     }
                     running = false
+                    statusText = null
                     streamingText = ""
                     liveTools.clear()
                     liveSources.clear()

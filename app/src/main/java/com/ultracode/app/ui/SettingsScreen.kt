@@ -147,6 +147,9 @@ fun SettingsScreen(vm: AppViewModel, onBack: () -> Unit) {
                     style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 KeyField("Ключ OpenRouter (sk-or-…)", free.apiKey) { vm.updateProvider(free.copy(apiKey = it)) }
+                SwitchRow("Автозамена занятой модели", "Если модель перегружена (ошибка 429) — ответит другая бесплатная", s.autoFallback) { v ->
+                    vm.updateSettings { it.copy(autoFallback = v) }
+                }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                     TextButton(onClick = { openUrl(ctx, free.keyUrl) }) { Text("Получить ключ") }
                     TextButton(onClick = { vm.refreshModels(free) }, enabled = !vm.loadingModels) {

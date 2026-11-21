@@ -63,6 +63,7 @@ data class AppSettings(
     val maxSteps: Int = 30,
     val notifyQuestions: Boolean = true,
     val webAccess: Boolean = true,
+    val autoFallback: Boolean = true,
 ) {
     fun provider(id: String = selectedProvider) = providers.firstOrNull { it.id == id }
 }

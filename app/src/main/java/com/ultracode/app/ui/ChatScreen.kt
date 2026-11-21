@@ -306,8 +306,8 @@ private fun Messages(vm: AppViewModel) {
             AssistantMessage(
                 ChatMessage(
                     role = "assistant",
-                    text = vm.streamingText.ifEmpty { if (vm.liveTools.isEmpty()) "Думаю…" else "" },
-                    model = vm.settings.selectedModel,
+                    text = vm.streamingText.ifEmpty { vm.statusText ?: if (vm.liveTools.isEmpty()) "Думаю…" else "" },
+                    model = vm.usedModel.ifEmpty { vm.settings.selectedModel },
                     provider = vm.settings.provider()?.name,
                     tools = vm.liveTools.toList(),
                     sources = vm.liveSources.toList(),

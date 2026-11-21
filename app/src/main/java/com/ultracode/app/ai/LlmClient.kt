@@ -149,7 +149,10 @@ object LlmClient {
         var stop: String? = null
         sse(req) { data ->
             val o = json.parseToJsonElement(data).jsonObject
-            o["error"]?.let { e -> throw ApiException(0, errorText(e)) }
+            o["error"]?.let { e ->
+                val code = ((e as? JsonObject)?.get("code") as? JsonPrimitive)?.intOrNull ?: 0
+                throw ApiException(code, errorText(e))
+            }
             val choice = (o["choices"] as? JsonArray)?.firstOrNull()?.jsonObject ?: return@sse
             val delta = choice["delta"] as? JsonObject
             delta?.get("content").str()?.let { if (it.isNotEmpty()) { text.append(it); onText(it) } }
@@ -292,8 +295,12 @@ object LlmClient {
     private fun errorFromBody(b: String): String =
         runCatching { errorText(json.parseToJsonElement(b).jsonObject["error"] ?: return b.take(500)) }.getOrElse { b.take(500) }
 
-    private fun errorText(e: JsonElement): String =
-        (e as? JsonObject)?.get("message").str() ?: e.str() ?: e.toString().take(500)
+    private fun errorText(e: JsonElement): String {
+        val o = e as? JsonObject ?: return e.str() ?: e.toString().take(500)
+        val msg = o["message"].str() ?: o.toString().take(500)
+        val raw = (o["metadata"] as? JsonObject)?.get("raw").str()
+        return if (raw != null && raw !in msg) "$msg — ${raw.take(300)}" else msg
+    }
 
     /** Lists models of a provider. For OpenRouter returns only free models. */
     suspend fun listModels(p: ProviderConfig): List<String> = withContext(Dispatchers.IO) {
