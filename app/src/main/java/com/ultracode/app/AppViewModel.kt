@@ -760,7 +760,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val images = last?.images.orEmpty().map { File(it) }.filter { it.exists() }
         val system = buildString {
             append(Prompts.design)
-            chat.repo?.let { append("\n\nРепозиторий GitHub пользователя для этой задачи: https://github.com/").append(it) }
+            if (settings.githubToken.isNotBlank()) append(Prompts.githubForClaudeCode(settings.githubLogin, chat.repo))
+            else chat.repo?.let { append("\n\nРепозиторий GitHub пользователя для этой задачи: https://github.com/").append(it) }
             if (settings.systemPrompt.isNotBlank()) append("\n\nИнструкции пользователя:\n").append(settings.systemPrompt)
         }
         var needSep = false
@@ -784,7 +785,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             viewModelScope.launch { chats.firstOrNull { it.id == chat.id }?.let { save(it.copy(ccSession = id)) } }
         }
         val res = if (p.baseUrl == Defaults.EMBEDDED) {
-            embedded.run(prompt, chat.ccSession, model, folder, system, settings.ccAllowBash, onText, onTool, onSession, images)
+            embedded.run(prompt, chat.ccSession, model, folder, system, settings.ccAllowBash, onText, onTool, onSession, images,
+                githubToken = settings.githubToken.takeIf { it.isNotBlank() })
         } else {
             com.ultracode.app.ai.ClaudeBridge.run(
                 url = p.baseUrl, token = p.apiKey, prompt = prompt, session = chat.ccSession, model = model,

@@ -178,6 +178,18 @@ class ToolBox(
 }
 
 object Prompts {
+    /** Tells Claude Code that GitHub is already connected in UltraCode (token comes via GH_TOKEN / GITHUB_TOKEN). */
+    fun githubForClaudeCode(login: String, repo: String?): String = buildString {
+        append("\n\nGITHUB УЖЕ ПОДКЛЮЧЁН в UltraCode (аккаунт $login). Токен доступа лежит в переменных окружения GH_TOKEN и GITHUB_TOKEN. ")
+        append("НЕ проси пользователя выполнять gh auth login — всё уже настроено. Никогда не выводи токен в ответ и не записывай его в файлы и в git remote. ")
+        append("Работай так: команда gh (она сама берёт GH_TOKEN); если gh не установлен — GitHub REST API через curl с заголовком ")
+        append("\"Authorization: Bearer \$GH_TOKEN\", а для git push/clone — одноразово: ")
+        append("git -c http.extraHeader=\"Authorization: Basic \$(printf 'x-access-token:%s' \"\$GH_TOKEN\" | base64 | tr -d '\\n')\" push https://github.com/OWNER/REPO.git HEAD:main. ")
+        append("Создать репозиторий: gh repo create ИМЯ --public --source . --push (или POST https://api.github.com/user/repos). ")
+        append("GitHub Pages: gh api repos/OWNER/REPO/pages -X POST -f \"source[branch]=main\" -f \"source[path]=/\" — и дай пользователю ссылку https://$login.github.io/REPO/.")
+        if (repo != null) append(" Подключённый к чату репозиторий: $repo (https://github.com/$repo). Если в текущей папке его нет — склонируй его сюда и работай в нём; можешь менять и удалять его содержимое, если пользователь просит.")
+    }
+
     /** Design rules so generated apps and sites don't look like typical "AI slop". */
     val design = """
         ПРАВИЛА ДИЗАЙНА для любых приложений, сайтов и игр, которые ты создаёшь (соблюдай всегда, если пользователь явно не попросил иначе):

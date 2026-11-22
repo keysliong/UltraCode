@@ -130,7 +130,7 @@ class EmbeddedClaude(private val ctx: Context) {
         File(root, "root/projects").mkdirs()
         writeFakeProc()
 
-        val needed = listOf("bin/bash", "usr/bin/script", "usr/bin/rg", "usr/bin/git")
+        val needed = listOf("bin/bash", "usr/bin/script", "usr/bin/rg", "usr/bin/git", "usr/bin/gh", "usr/bin/curl")
         if (needed.any { !File(root, it).exists() }) {
             // Main CDN first, then mirrors (the CDN often drops downloads in some countries).
             val mirrors = listOf("https://dl-cdn.alpinelinux.org/alpine", "https://mirror.yandex.ru/mirrors/alpine",
@@ -140,7 +140,7 @@ class EmbeddedClaude(private val ctx: Context) {
                 File(root, "etc/apk/repositories").writeText("$mirror/v3.20/main\n$mirror/v3.20/community\n")
                 progress("Устанавливаю пакеты Linux (попытка ${i + 1}, ${mirror.substringAfter("//").substringBefore('/')})…", null)
                 val (code, out) = exec(listOf("/sbin/apk", "add", "--no-cache", "--update-cache",
-                    "bash", "git", "ripgrep", "ca-certificates", "util-linux-misc", "libgcc", "libstdc++"), timeoutSec = 900) {
+                    "bash", "git", "ripgrep", "ca-certificates", "util-linux-misc", "libgcc", "libstdc++", "github-cli", "curl"), timeoutSec = 900) {
                     progress("Пакеты: ${it.take(60)}", null)
                 }
                 lastOut = out
@@ -436,6 +436,7 @@ class EmbeddedClaude(private val ctx: Context) {
         prompt: String, session: String?, model: String, folder: String, system: String, allowBash: Boolean,
         onText: (String) -> Unit, onTool: (String, WebSource?) -> Unit, onSession: (String) -> Unit,
         images: List<File> = emptyList(),
+        githubToken: String? = null,
     ): ClaudeBridge.Result = withContext(Dispatchers.IO) {
         if (!installed) throw ApiException(0, "Claude Code не установлен. Настройки → Claude Code по подписке → Скачать Claude Code.")
         if (!loggedIn) throw ApiException(0, "Войдите в аккаунт Claude: Настройки → Claude Code по подписке → Войти в Claude.")
@@ -457,7 +458,13 @@ class EmbeddedClaude(private val ctx: Context) {
         args += listOf("--permission-mode", "acceptEdits", "--allowedTools") + tools
         // The token is read by the shell inside Linux and passed only to Claude Code.
         val cmd = listOf("/bin/sh", "-c", "export CLAUDE_CODE_OAUTH_TOKEN=\"\$(cat /root/.ultracode/token)\"; exec /usr/local/bin/claude \"\$@\"", "claude") + args
-        val pb = ProcessBuilder(prootCmd(cmd, cwd = "/root/projects/$clean"))
+        // Older installs: add GitHub CLI on first use (best effort, quick).
+        if (githubToken != null && !File(root, "usr/bin/gh").exists()) {
+            runCatching { exec(listOf("/sbin/apk", "add", "--no-cache", "github-cli", "curl"), timeoutSec = 300) }
+        }
+        // GitHub access connected in UltraCode -> available to Claude Code (gh / git / curl).
+        val ghEnv = githubToken?.let { mapOf("GH_TOKEN" to it, "GITHUB_TOKEN" to it) } ?: emptyMap()
+        val pb = ProcessBuilder(prootCmd(cmd, cwd = "/root/projects/$clean", guestEnv = ghEnv))
         pb.environment().putAll(env())
         val p = pb.start()
         val parser = ClaudeStreamParser(session, onText, onTool, onSession)

@@ -462,7 +462,9 @@ class DesktopState {
                 unseen.joinToString("\n\n") { if (it.role == "user") "Пользователь: ${it.text}" else "ИИ (${it.model}): ${it.text}" }.takeLast(20_000) +
                 "\n--- конец ---\n\nНовое сообщение пользователя:\n"
         val prompt = transcript + last?.text.orEmpty().ifBlank { "Что на изображении?" }
-        val system = Prompts.design + (chat.repo?.let { "\n\nРепозиторий пользователя: https://github.com/$it" } ?: "") +
+        val gh = settings.githubToken.takeIf { it.isNotBlank() }
+        val system = Prompts.design +
+            (if (gh != null) Prompts.githubForClaudeCode(settings.githubLogin, chat.repo) else chat.repo?.let { "\n\nРепозиторий пользователя: https://github.com/$it" } ?: "") +
             (if (settings.systemPrompt.isNotBlank()) "\n\nИнструкции пользователя:\n${settings.systemPrompt}" else "")
         val dir = File(workspaceDir(), chat.repo?.substringAfter('/') ?: settings.ccFolder)
         var needSep = false
@@ -479,6 +481,7 @@ class DesktopState {
                 scope.launch { liveTools += label; if (web != null && liveSources.none { it.url == web.url }) liveSources += web }
             },
             onSession = { id -> scope.launch { chats.firstOrNull { it.id == chat.id }?.let { save(it.copy(ccSession = id)) } } },
+            githubToken = gh,
         )
         if (res.text.isNotBlank() && sb.isEmpty()) { sb.append(res.text); streamingText = sb.toString() }
         chats.firstOrNull { it.id == chat.id }?.let { save(it.copy(ccSeen = it.messages.size + 1)) }

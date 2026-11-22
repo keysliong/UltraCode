@@ -96,6 +96,7 @@ object LocalClaude {
         projectDir: File, prompt: String, session: String?, model: String, system: String, allowBash: Boolean,
         images: List<File>,
         onText: (String) -> Unit, onTool: (String, WebSource?) -> Unit, onSession: (String) -> Unit,
+        githubToken: String? = null,
     ): ClaudeBridge.Result = withContext(Dispatchers.IO) {
         val claude = findClaude() ?: throw ApiException(0,
             "Claude Code не найден на компьютере. Настройки → Claude Code → «Установить», затем «Войти в Claude».")
@@ -118,6 +119,8 @@ object LocalClaude {
         args += listOf("--permission-mode", "acceptEdits", "--allowedTools") + tools
         val pb = ProcessBuilder(claude + args).directory(projectDir)
         pb.environment()["DISABLE_AUTOUPDATER"] = "1"
+        // GitHub connected in UltraCode -> Claude Code can use gh / git / the API without `gh auth login`.
+        githubToken?.let { pb.environment()["GH_TOKEN"] = it; pb.environment()["GITHUB_TOKEN"] = it }
         val p = pb.start()
         val parser = ClaudeStreamParser(session, onText, onTool, onSession)
         val stderr = StringBuilder()
