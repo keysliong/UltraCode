@@ -72,6 +72,7 @@ class DesktopState {
     var reposLoading by mutableStateOf(false); private set
     var githubDevice by mutableStateOf<GitHubAuth.DeviceCode?>(null); private set
     var claudeVersion by mutableStateOf<String?>(null); private set
+    var claudeAuth by mutableStateOf<LocalClaude.Auth?>(null); private set
 
     private var job: Job? = null
     private var ghJob: Job? = null
@@ -254,14 +255,19 @@ class DesktopState {
 
     // ------------------------------------------------------------ Claude Code (local official CLI)
 
-    fun checkClaude() { scope.launch { claudeVersion = LocalClaude.version() } }
+    fun checkClaude() {
+        scope.launch {
+            claudeVersion = LocalClaude.version()
+            claudeAuth = if (claudeVersion != null) LocalClaude.authStatus() else null
+        }
+    }
 
     fun installClaude() = runCatching { LocalClaude.openTerminal(LocalClaude.installCommand) }.onFailure { toast = it.message }
 
     fun loginClaude() {
         val cmd = LocalClaude.findClaude()?.joinToString(" ") { if (it.contains(' ')) "\"$it\"" else it } ?: "claude"
         runCatching { LocalClaude.openTerminal(cmd) }.onFailure { toast = it.message }
-        toast = "В терминале войдите в аккаунт Claude (команда /login), потом закройте окно"
+        toast = "В терминале введите /login → «Claude account with subscription», затем нажмите «Проверить»"
     }
 
     // ------------------------------------------------------------ chats

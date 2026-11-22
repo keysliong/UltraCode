@@ -586,9 +586,23 @@ fun SettingsPane(state: DesktopState) {
                 style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Text(state.claudeVersion?.let { "Установлен: $it" } ?: "Claude Code не найден", style = MaterialTheme.typography.titleSmall,
                 color = if (state.claudeVersion != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error)
+            state.claudeAuth?.let { a ->
+                when {
+                    !a.loggedIn -> Text("Вход не выполнен", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
+                    a.apiBilling -> Text(
+                        "Вход выполнен, но через API-ключ (${a.method}): запросы оплачиваются отдельно, а не по подписке Pro/Max. " +
+                            "Чтобы работать по подписке: «Сменить вход» → в Claude Code введите /login → выберите «Claude account with subscription». " +
+                            "Если на компьютере задана переменная среды ANTHROPIC_API_KEY, удалите её — она заставляет Claude Code платить по API.",
+                        style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
+                    else -> Text("Вход выполнен (${a.method}) — работает по вашей подписке", style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.primary)
+                }
+            }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (state.claudeVersion == null) Button(onClick = { state.installClaude() }) { Text("Установить Claude Code") }
-                OutlinedButton(onClick = { state.loginClaude() }) { Text("Войти в Claude") }
+                OutlinedButton(onClick = { state.loginClaude() }) {
+                    Text(if (state.claudeAuth?.loggedIn == true) "Сменить вход" else "Войти в Claude")
+                }
                 TextButton(onClick = { state.checkClaude() }) { Text("Проверить") }
             }
             Text("1) «Установить» откроет терминал с официальным установщиком. 2) «Войти в Claude» откроет Claude Code — войдите командой /login. " +

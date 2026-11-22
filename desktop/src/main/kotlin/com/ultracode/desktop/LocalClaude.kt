@@ -46,6 +46,27 @@ object LocalClaude {
         }.getOrNull()
     }
 
+    data class Auth(val loggedIn: Boolean, val method: String) {
+        /** Signed in with an API key / Console account: billed per request, not the Pro/Max subscription. */
+        val apiBilling: Boolean get() = method.contains("api", true) || method.contains("console", true)
+    }
+
+    /** `claude auth status --json` (official command). */
+    suspend fun authStatus(): Auth? = withContext(Dispatchers.IO) {
+        val cmd = findClaude() ?: return@withContext null
+        runCatching {
+            val p = ProcessBuilder(cmd + listOf("auth", "status", "--json")).redirectErrorStream(true).start()
+            p.outputStream.close()
+            val out = p.inputStream.bufferedReader().readText()
+            if (!p.waitFor(60, TimeUnit.SECONDS)) { p.destroyForcibly(); return@runCatching null }
+            val o = com.ultracode.app.data.JsonConfig.json.parseToJsonElement(out.substring(out.indexOf('{'))).let { it as kotlinx.serialization.json.JsonObject }
+            Auth(
+                loggedIn = (o["loggedIn"] as? kotlinx.serialization.json.JsonPrimitive)?.content == "true",
+                method = (o["authMethod"] as? kotlinx.serialization.json.JsonPrimitive)?.content ?: "",
+            )
+        }.getOrNull()
+    }
+
     /** Opens a terminal window running [command] (for the official installer and sign-in). */
     fun openTerminal(command: String) {
         runCatching {
