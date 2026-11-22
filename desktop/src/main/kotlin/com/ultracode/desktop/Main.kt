@@ -150,10 +150,20 @@ fun main() = application {
         onCloseRequest = ::exitApplication,
         title = "UltraCode",
         state = winState,
-        icon = rememberVectorPainter(Icons.Outlined.Code),
+        icon = androidx.compose.ui.res.painterResource("icon.png"),
     ) {
         state.onQuestion = { window.toFront(); window.requestFocus() }
         val dark = when (state.settings.themeMode) { 1 -> false; 2 -> true; else -> androidx.compose.foundation.isSystemInDarkTheme() }
+        // Native title bar in the theme colors (Windows), on macOS a transparent title bar over the app background.
+        LaunchedEffect(dark) {
+            val scheme = if (dark) DarkScheme else LightScheme
+            TitleBar.apply(window, dark, scheme.surfaceContainerLow, scheme.onSurface)
+        }
+        if (LocalClaude.isMac) LaunchedEffect(Unit) {
+            window.rootPane.putClientProperty("apple.awt.transparentTitleBar", true)
+            window.rootPane.putClientProperty("apple.awt.fullWindowContent", true)
+            window.rootPane.putClientProperty("apple.awt.windowTitleVisible", false)
+        }
         MaterialTheme(colorScheme = if (dark) DarkScheme else LightScheme) {
             Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                 App(state, window)
@@ -166,7 +176,7 @@ fun main() = application {
 fun App(state: DesktopState, frame: java.awt.Frame) {
     val snack = remember { SnackbarHostState() }
     LaunchedEffect(state.toast) { state.toast?.let { snack.showSnackbar(it); state.toast = null } }
-    Box(Modifier.fillMaxSize()) {
+    Box(Modifier.fillMaxSize().padding(top = if (LocalClaude.isMac) 28.dp else 0.dp)) {
         Row(Modifier.fillMaxSize()) {
             Sidebar(state)
             Box(Modifier.weight(1f).fillMaxHeight()) {

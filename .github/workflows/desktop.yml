@@ -42,11 +42,22 @@ jobs:
             exit 1
           }
 
+      - name: Windows installer (Inno Setup, Material You style)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          ./gradlew :desktop:createDistributable --no-daemon
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { choco install innosetup -y --no-progress | Out-Null }
+          & $iscc "/DAppVer=1.0.${{ github.run_number }}" desktop\installer\UltraCode.iss
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
       - name: Collect files
         shell: bash
         run: |
           mkdir -p out
-          find desktop/build/compose/binaries -type f \( -name '*.msi' -o -name '*.exe' -o -name '*.dmg' -o -name '*.deb' \) -exec cp {} out/ \;
+          find desktop/build/compose/binaries -type f \( -name '*.msi' -o -name '*.dmg' -o -name '*.deb' \) -exec cp {} out/ \;
+          if [ -d desktop/build/installer ]; then cp desktop/build/installer/*.exe out/; fi
           ls -la out
 
       - uses: actions/upload-artifact@v4
@@ -70,7 +81,7 @@ jobs:
           target_commitish: ${{ github.sha }}
           body: |
             UltraCode для компьютера.
-            - **Windows**: `UltraCode-*.exe` или `UltraCode-*.msi`
+            - **Windows**: `UltraCode-Setup-*.exe` (установщик) или `UltraCode-*.msi`
             - **macOS**: `UltraCode-*.dmg` (при первом запуске: правый клик → «Открыть»)
             - **Linux (Ubuntu/Debian)**: `ultracode_*.deb`
           files: dist/*

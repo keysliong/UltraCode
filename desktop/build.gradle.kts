@@ -39,6 +39,8 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-swing:1.9.0")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    // Dark / colored window title bar on Windows (DWM API).
+    implementation("net.java.dev.jna:jna-platform:5.15.0")
 }
 
 val appVersion = "1.0." + (System.getenv("GITHUB_RUN_NUMBER") ?: "0")
@@ -48,24 +50,28 @@ compose.desktop {
         mainClass = "com.ultracode.desktop.MainKt"
         jvmArgs += listOf("-Dfile.encoding=UTF-8")
         nativeDistributions {
-            targetFormats(TargetFormat.Msi, TargetFormat.Exe, TargetFormat.Dmg, TargetFormat.Deb)
+            // Windows .exe installer is built with Inno Setup (desktop/installer/UltraCode.iss).
+            targetFormats(TargetFormat.Msi, TargetFormat.Dmg, TargetFormat.Deb)
             packageName = "UltraCode"
             packageVersion = appVersion
             description = "UltraCode - AI coding agent"
             vendor = "UltraCode"
-            modules("java.naming", "jdk.crypto.ec", "java.net.http")
+            modules("java.naming", "jdk.crypto.ec", "java.net.http", "jdk.unsupported")
             windows {
                 menuGroup = "UltraCode"
                 shortcut = true
                 dirChooser = true
                 perUserInstall = true
                 upgradeUuid = "5b0c6a1e-2f7d-4c55-9b7e-8f3c1a9d2e41"
+                iconFile.set(project.file("icons/icon.ico"))
             }
             macOS {
                 bundleID = "com.ultracode.desktop"
+                iconFile.set(project.file("icons/icon.icns"))
             }
             linux {
                 shortcut = true
+                iconFile.set(project.file("icons/icon.png"))
             }
         }
     }
