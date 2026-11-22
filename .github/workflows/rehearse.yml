@@ -80,3 +80,13 @@ jobs:
             --permission-mode acceptEdits --allowedTools Read Bash > run.jsonl 2> run.err || true
           echo "--- stdout"; head -c 3000 run.jsonl; echo; echo "--- stderr"; tail -c 1500 run.err
           grep -q '"type":"result"' run.jsonl
+
+      - name: Python in the embedded Linux (same as the app's "Run" button)
+        run: |
+          ./p.sh /sbin/apk add --no-cache python3
+          mkdir -p ws && echo "hello from file" > ws/data.txt
+          printf 'import os, sys\nprint("python", sys.version.split()[0])\nprint(open("data.txt").read().strip())\nprint("cwd:", os.getcwd())\n' > "$R/tmp/t.py"
+          CWD=/workspace ./p.sh /usr/bin/python3 -X utf8 /tmp/t.py > py.out 2>&1 || true
+          sed -i 's|exec proot |exec proot -b "$WS:/workspace" |' p.sh
+          WS=$PWD/ws CWD=/workspace ./p.sh /usr/bin/python3 -X utf8 /tmp/t.py | tee py.out
+          grep -q "hello from file" py.out
