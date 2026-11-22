@@ -270,8 +270,7 @@ fun ChatPane(state: DesktopState, frame: java.awt.Frame) {
                 }
                 item {
                     AssistChip(onClick = {
-                        val ch = JFileChooser(state.workspaceDir()).apply { fileSelectionMode = JFileChooser.DIRECTORIES_ONLY; dialogTitle = "Рабочая папка" }
-                        if (ch.showOpenDialog(frame) == JFileChooser.APPROVE_OPTION) state.setWorkspace(ch.selectedFile)
+                        NativeDialogs.pickFolder(frame, state.workspaceDir())?.let { state.setWorkspace(it) }
                     }, shape = CircleShape, label = { Text(state.workspaceDir().name, maxLines = 1) },
                         leadingIcon = { Icon(Icons.Outlined.Folder, null, Modifier.size(18.dp)) })
                 }
@@ -426,9 +425,7 @@ fun InputBar(state: DesktopState, frame: java.awt.Frame) {
             }
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(6.dp)) {
                 CookieButton(onClick = {
-                    val d = FileDialog(frame, "Фото", FileDialog.LOAD).apply { isMultipleMode = true; file = "*.jpg;*.jpeg;*.png;*.webp" }
-                    d.isVisible = true
-                    d.files.forEach { state.addImage(it) }
+                    NativeDialogs.pickImages(frame).forEach { state.addImage(it) }
                 }, size = 44.dp, lobes = 6, container = MaterialTheme.colorScheme.secondaryContainer) { Icon(Icons.Outlined.AddPhotoAlternate, "Фото") }
                 TextField(
                     value = state.draft, onValueChange = { state.draft = it },

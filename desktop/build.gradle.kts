@@ -41,6 +41,14 @@ dependencies {
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     // Dark / colored window title bar on Windows (DWM API).
     implementation("net.java.dev.jna:jna-platform:5.15.0")
+    // Modern native file dialogs (Windows Explorer dialog, GTK on Linux).
+    val lwjgl = "3.3.4"
+    implementation("org.lwjgl:lwjgl:$lwjgl")
+    implementation("org.lwjgl:lwjgl-nfd:$lwjgl")
+    for (n in listOf("natives-windows", "natives-linux", "natives-macos", "natives-macos-arm64")) {
+        runtimeOnly("org.lwjgl:lwjgl:$lwjgl:$n")
+        runtimeOnly("org.lwjgl:lwjgl-nfd:$lwjgl:$n")
+    }
 }
 
 val appVersion = "1.0." + (System.getenv("GITHUB_RUN_NUMBER") ?: "0")
