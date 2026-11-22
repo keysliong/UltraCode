@@ -96,7 +96,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** Model ids are ASCII without spaces (e.g. "llama-3.3-70b-versatile", "qwen/qwen3-coder:free"). */
-    fun validModelId(m: String) = m.isNotBlank() && m.none { it.isWhitespace() } && m.all { it.code in 33..126 }
+    fun validModelId(m: String) = com.ultracode.app.data.Storage.isValidModelId(m)
 
     private fun shortName(m: String) = m.substringAfter('/').removeSuffix(":free")
 
@@ -158,9 +158,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                     continue
                 }
                 // Model id does not exist at this provider (typo / renamed): drop it and use a working one.
+                // Only a clear "this model does not exist / was retired" answer counts — not other errors.
                 val unknownModel = p.id != Defaults.OPENROUTER && (e.code == 404 || e.code == 400) &&
                     (msg.contains("does not exist", true) || msg.contains("model_not_found", true) ||
-                        msg.contains("not found", true) || msg.contains("invalid model", true) || msg.contains("unknown model", true))
+                        msg.contains("decommissioned", true) || msg.contains("unknown model", true))
                 if (unknownModel) {
                     val bad = usedModel
                     val next = settings.provider(p.id)?.models?.firstOrNull { it != bad && validModelId(it) }
@@ -212,6 +213,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             chats.addAll(list)
         }
         verifyFreeModels(silent = true)
+        // Real, current model list from Groq (models get retired there regularly).
+        settings.provider(Defaults.GROQ)?.takeIf { it.apiKey.isNotBlank() }?.let { refreshModels(it, silent = true) }
     }
 
     /**
@@ -273,6 +276,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun addModel(providerId: String, model: String) {
         val m = model.trim().removePrefix("\"").removeSuffix("\"")
         if (m.isEmpty()) return
+        if (com.ultracode.app.data.Storage.looksLikeKey(m)) {
+            toast = "Это ключ, а не модель. Вставьте его в поле «Ключ» этого сервиса."
+            return
+        }
         if (!validModelId(m)) {
             toast = "Это не ID модели. Впишите точное название латиницей без пробелов, например llama-3.3-70b-versatile"
             return
@@ -287,16 +294,22 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun selectModel(providerId: String, model: String) =
         updateSettings { it.copy(selectedProvider = providerId, selectedModel = model) }
 
-    fun refreshModels(p: ProviderConfig) {
-        if (p.id == Defaults.OPENROUTER) { verifyFreeModels(); return }
+    fun refreshModels(p: ProviderConfig, silent: Boolean = false) {
+        if (p.id == Defaults.OPENROUTER) { verifyFreeModels(silent); return }
         viewModelScope.launch {
             loadingModels = true
             try {
                 val models = LlmClient.listModels(p)
-                if (models.isEmpty()) toast = "Список моделей пуст"
-                else { updateProvider(p.copy(models = models)); toast = "Загружено моделей: ${models.size}" }
+                if (models.isEmpty()) { if (!silent) toast = "Список моделей пуст" }
+                else {
+                    val cur = settings.provider(p.id) ?: p
+                    updateProvider(cur.copy(models = models))
+                    // Selected model of this provider no longer exists -> pick the first real one.
+                    if (settings.selectedProvider == p.id && settings.selectedModel !in models) selectModel(p.id, models.first())
+                    if (!silent) toast = "Загружено моделей: ${models.size}"
+                }
             } catch (e: Exception) {
-                toast = "Не удалось загрузить модели: ${e.message}"
+                if (!silent) toast = "Не удалось загрузить модели: ${e.message}"
             } finally {
                 loadingModels = false
             }

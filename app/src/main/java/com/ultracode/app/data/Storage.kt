@@ -54,17 +54,25 @@ class Storage(context: Context) {
         }
         // Drop invalid model ids that were typed in by mistake (spaces / non-latin letters).
         for (k in list.indices) {
-            val ok = list[k].models.filter { m -> m.isNotBlank() && m.none { it.isWhitespace() } && m.all { it.code in 33..126 } }
+            val ok = list[k].models.filter { isValidModelId(it) }
             if (ok.size != list[k].models.size) list[k] = list[k].copy(models = ok)
         }
         val sel = s.selectedModel
-        val fixedSel = if (sel.any { it.isWhitespace() } || sel.any { it.code !in 33..126 }) {
+        val fixedSel = if (!isValidModelId(sel)) {
             list.firstOrNull { it.id == s.selectedProvider }?.models?.firstOrNull() ?: Defaults.freeModels.first()
         } else sel
         return s.copy(providers = list, selectedModel = fixedSel)
     }
 
     companion object {
+        /** API keys pasted into a "model" field by mistake. */
+        fun looksLikeKey(m: String) = listOf("sk-", "gsk_", "ghp_", "gho_", "github_pat_", "AIza", "xai-", "hf_")
+            .any { m.startsWith(it) } && m.length > 30
+
+        /** Model ids are latin, without spaces, and not API keys. */
+        fun isValidModelId(m: String) = m.isNotBlank() && m.none { it.isWhitespace() } &&
+            m.all { it.code in 33..126 } && !looksLikeKey(m)
+
         val json = Json {
             ignoreUnknownKeys = true
             encodeDefaults = true

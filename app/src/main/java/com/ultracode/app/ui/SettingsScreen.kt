@@ -156,7 +156,14 @@ fun SettingsScreen(vm: AppViewModel, onBack: () -> Unit, onClaude: () -> Unit = 
                         "(регистрация за минуту, у бесплатного тарифа есть лимиты в минуту и в день).",
                     style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                KeyField("Ключ Groq (gsk_…)", groq.apiKey) { vm.updateProvider(groq.copy(apiKey = it)) }
+                KeyField("Ключ Groq (gsk_…)", groq.apiKey) { vm.updateProvider(groq.copy(apiKey = it.trim())) }
+                // After a key is entered, load the real list of Groq models.
+                LaunchedEffect(groq.apiKey) {
+                    if (groq.apiKey.startsWith("gsk_") && groq.apiKey.length > 30) {
+                        kotlinx.coroutines.delay(1200)
+                        vm.refreshModels(groq, silent = true)
+                    }
+                }
                 AddModelRow("Добавить модель Groq", "например llama-3.3-70b-versatile") { vm.addModel(groq.id, it) }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                     TextButton(onClick = { openUrl(ctx, groq.keyUrl) }) { Text("Получить ключ") }
