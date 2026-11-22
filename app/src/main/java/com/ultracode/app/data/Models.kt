@@ -88,6 +88,7 @@ object Defaults {
     const val OPENROUTER = "openrouter"
     const val CLAUDE_CODE = "claude_code"
     const val GROQ = "groq"
+    const val DEEPSEEK = "deepseek"
 
     /** Groq: very fast, free tier with a key from console.groq.com. Refreshable from the app. */
     val groqModels = listOf(
@@ -180,13 +181,21 @@ object Defaults {
             builtin = true,
             keyUrl = "https://console.groq.com/keys",
         ),
+        ProviderConfig(
+            id = DEEPSEEK,
+            name = "DeepSeek",
+            kind = ProviderKind.OPENAI,
+            baseUrl = "https://api.deepseek.com/v1",
+            models = listOf("deepseek-chat", "deepseek-reasoner"),
+            builtin = true,
+            keyUrl = "https://platform.deepseek.com/api_keys",
+        ),
     )
 
     /** Presets for "connect your own neural network". */
     data class Preset(val name: String, val kind: ProviderKind, val url: String, val models: String, val keyOptional: Boolean = false, val keyUrl: String = "")
 
     val presets = listOf(
-        Preset("DeepSeek", ProviderKind.OPENAI, "https://api.deepseek.com/v1", "deepseek-chat, deepseek-reasoner", keyUrl = "https://platform.deepseek.com/api_keys"),
         Preset("GLM (Zhipu)", ProviderKind.OPENAI, "https://open.bigmodel.cn/api/paas/v4", "glm-4.5-flash, glm-4.6", keyUrl = "https://open.bigmodel.cn/usercenter/apikeys"),
         Preset("Gemini", ProviderKind.OPENAI, "https://generativelanguage.googleapis.com/v1beta/openai", "gemini-2.5-flash, gemini-2.5-pro", keyUrl = "https://aistudio.google.com/apikey"),
         Preset("Mistral", ProviderKind.OPENAI, "https://api.mistral.ai/v1", "codestral-latest, mistral-large-latest", keyUrl = "https://console.mistral.ai/api-keys"),

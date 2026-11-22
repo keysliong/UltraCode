@@ -20,6 +20,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Psychology
 import androidx.compose.material.icons.outlined.Bolt
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.material.icons.automirrored.outlined.Login
@@ -146,6 +147,29 @@ fun SettingsScreen(vm: AppViewModel, onBack: () -> Unit, onClaude: () -> Unit = 
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     TextButton(onClick = { openUrl(ctx, claude.keyUrl) }) { Text("Войти и получить ключ") }
                     if (claude.apiKey.isNotBlank()) TextButton(onClick = { vm.refreshModels(claude) }) { Text("Обновить модели") }
+                }
+            }
+
+            val ds = s.provider(Defaults.DEEPSEEK)
+            if (ds != null) Section(Icons.Outlined.Psychology, "DeepSeek API") {
+                Text(
+                    "Официальный API DeepSeek: deepseek-chat (V3) и deepseek-reasoner (R1, думает перед ответом). " +
+                        "Платный, но очень дешёвый: нужен ключ и пополненный баланс на platform.deepseek.com.",
+                    style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                KeyField("Ключ DeepSeek (sk-…)", ds.apiKey) { vm.updateProvider(ds.copy(apiKey = it.trim())) }
+                LaunchedEffect(ds.apiKey) {
+                    if (ds.apiKey.startsWith("sk-") && ds.apiKey.length > 25) {
+                        kotlinx.coroutines.delay(1200)
+                        vm.refreshModels(ds, silent = true)
+                    }
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    TextButton(onClick = { openUrl(ctx, ds.keyUrl) }) { Text("Получить ключ") }
+                    if (ds.apiKey.isNotBlank()) TextButton(onClick = { vm.refreshModels(ds) }, enabled = !vm.loadingModels) {
+                        Icon(Icons.Outlined.Refresh, null, Modifier.size(18.dp)); Spacer(Modifier.size(6.dp))
+                        Text("Обновить список (${ds.models.size})")
+                    }
                 }
             }
 

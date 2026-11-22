@@ -215,6 +215,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         verifyFreeModels(silent = true)
         // Real, current model list from Groq (models get retired there regularly).
         settings.provider(Defaults.GROQ)?.takeIf { it.apiKey.isNotBlank() }?.let { refreshModels(it, silent = true) }
+        settings.provider(Defaults.DEEPSEEK)?.takeIf { it.apiKey.isNotBlank() }?.let { refreshModels(it, silent = true) }
     }
 
     /**
@@ -730,9 +731,13 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             pickFree(free.id, emptySet(), needTools = true)?.let { return free to it }
         }
         // Groq as the second option.
-        val groq = settings.provider(Defaults.GROQ)?.takeIf { it.apiKey.isNotBlank() && it.models.isNotEmpty() } ?: return null
-        val m = groq.models.firstOrNull { it.contains("70b") || it.contains("kimi") || it.contains("120b") } ?: groq.models.first()
-        return groq to m
+        settings.provider(Defaults.GROQ)?.takeIf { it.apiKey.isNotBlank() && it.models.isNotEmpty() }?.let { groq ->
+            val m = groq.models.firstOrNull { it.contains("70b") || it.contains("kimi") || it.contains("120b") } ?: groq.models.first()
+            return groq to m
+        }
+        // DeepSeek API as the third option.
+        val ds = settings.provider(Defaults.DEEPSEEK)?.takeIf { it.apiKey.isNotBlank() && it.models.isNotEmpty() } ?: return null
+        return ds to (ds.models.firstOrNull { it == "deepseek-chat" } ?: ds.models.first())
     }
 
     /** Messages Claude Code has not seen yet (answered by other models), as a transcript. */
