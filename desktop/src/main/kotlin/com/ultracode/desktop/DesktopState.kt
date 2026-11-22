@@ -270,6 +270,31 @@ class DesktopState {
         toast = "В терминале введите /login → «Claude account with subscription», затем нажмите «Проверить»"
     }
 
+    // ------------------------------------------------------------ code blocks (run Python)
+
+    /** Output of Python code blocks run from the chat (key = code). */
+    val codeRuns = androidx.compose.runtime.mutableStateMapOf<String, String>()
+    val codeRunning = androidx.compose.runtime.mutableStateListOf<String>()
+
+    fun runCodeBlock(code: String) {
+        if (code in codeRunning) return
+        codeRunning += code
+        scope.launch {
+            try {
+                val (exit, out) = PythonRunner.run(code, workspaceDir())
+                codeRuns[code] = (if (exit == 0) "" else if (exit > 0) "Код выхода: $exit\n" else "") + out
+            } finally { codeRunning -= code }
+        }
+    }
+
+    /** Opens an HTML page from a code block in the browser. */
+    fun openHtml(html: String) {
+        runCatching {
+            val f = File(store.dir, "preview/page_${html.hashCode().toUInt()}.html").apply { parentFile.mkdirs(); writeText(html) }
+            openUrl(f.toURI().toString())
+        }.onFailure { toast = "Не удалось открыть: ${it.message}" }
+    }
+
     // ------------------------------------------------------------ chats
 
     fun newChat(): Chat {
@@ -359,7 +384,10 @@ class DesktopState {
                 val ws = FileWorkspace(workspaceDir())
                 val gh = settings.githubToken.takeIf { it.isNotBlank() }?.let { GitHub(it) }
                 val web = if (settings.webAccess) WebTools { src -> scope.launch { if (liveSources.none { it.url == src.url }) liveSources += src } } else null
-                val box = ToolBox(ws, gh, chat.repo, ::ask, web)
+                val box = ToolBox(ws, gh, chat.repo, ::ask, web, python = { code ->
+                    val (exit, out) = PythonRunner.run(code, workspaceDir())
+                    "Код выхода: $exit\n$out"
+                })
                 var tools = if (chat.agent) box.specs else box.webSpecs
                 val system = buildString {
                     append(if (chat.agent) Prompts.agent else Prompts.chat)

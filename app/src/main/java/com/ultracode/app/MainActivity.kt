@@ -43,6 +43,9 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             UltraTheme(vm.settings.themeMode, vm.settings.dynamicColor) {
+                androidx.compose.runtime.CompositionLocalProvider(
+                    com.ultracode.app.ui.LocalCodeActions provides { lang, code -> com.ultracode.app.ui.PhoneCodeActions(vm, lang, code) },
+                ) {
                 Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                     var screen by rememberSaveable { mutableStateOf("chat") }
                     BackHandler(enabled = screen != "chat") { screen = "chat" }
@@ -57,6 +60,7 @@ class MainActivity : ComponentActivity() {
                             else -> ChatScreen(vm, onSettings = { screen = "settings" }, onRepos = { screen = "repos" }, onClaude = { openClaude() })
                         }
                     }
+                }
                 }
             }
         }

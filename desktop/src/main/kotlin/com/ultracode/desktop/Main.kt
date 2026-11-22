@@ -39,6 +39,7 @@ import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.outlined.AddPhotoAlternate
 import androidx.compose.material.icons.outlined.ArrowDropDown
 import androidx.compose.material.icons.outlined.ChatBubbleOutline
@@ -166,7 +167,11 @@ fun main() = application {
         }
         MaterialTheme(colorScheme = if (dark) DarkScheme else LightScheme) {
             Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-                App(state, window)
+                androidx.compose.runtime.CompositionLocalProvider(
+                    com.ultracode.app.ui.LocalCodeActions provides { lang, code -> CodeActions(state, lang, code) },
+                ) {
+                    App(state, window)
+                }
             }
         }
     }
@@ -721,6 +726,40 @@ fun ReposPane(state: DesktopState) {
                             val sub = listOf(r.language, r.description).filter { it.isNotBlank() }.joinToString(" · ")
                             if (sub.isNotBlank()) Text(sub, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** Buttons under code blocks: run Python (output right below) or open HTML in the browser. */
+@Composable
+fun CodeActions(state: DesktopState, lang: String, code: String) {
+    val py = com.ultracode.app.ui.isPythonLang(lang)
+    val html = com.ultracode.app.ui.isHtmlLang(lang)
+    if (!py && !html) return
+    Column(Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, bottom = 12.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (py) {
+                val running = code in state.codeRunning
+                Button(onClick = { state.runCodeBlock(code) }, enabled = !running, shape = RoundedCornerShape(16.dp)) {
+                    Icon(androidx.compose.material.icons.Icons.Filled.PlayArrow, null, Modifier.size(18.dp)); Spacer(Modifier.size(6.dp))
+                    Text(if (running) "Выполняется…" else "Запустить")
+                }
+            }
+            if (html) Button(onClick = { state.openHtml(code) }, shape = RoundedCornerShape(16.dp)) {
+                Icon(androidx.compose.material.icons.Icons.Filled.PlayArrow, null, Modifier.size(18.dp)); Spacer(Modifier.size(6.dp))
+                Text("Открыть сайт")
+            }
+        }
+        state.codeRuns[code]?.let { out ->
+            Surface(color = MaterialTheme.colorScheme.surfaceContainerLowest, shape = RoundedCornerShape(14.dp),
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
+                Column(Modifier.padding(12.dp)) {
+                    Text("Вывод", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                    SelectionContainer {
+                        Text(out.trimEnd(), fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace, style = MaterialTheme.typography.bodySmall)
                     }
                 }
             }

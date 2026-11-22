@@ -48,7 +48,7 @@ class EmbeddedClaude(private val ctx: Context) {
     ) + extra
 
     /** Command line that runs [cmd] inside Alpine as fake root. */
-    private fun prootCmd(cmd: List<String>, cwd: String = "/root", guestEnv: Map<String, String> = emptyMap()): List<String> {
+    private fun prootCmd(cmd: List<String>, cwd: String = "/root", guestEnv: Map<String, String> = emptyMap(), extraBinds: List<String> = emptyList()): List<String> {
         val fake = File(root, ".fake")
         val binds = mutableListOf(
             "-b", "/dev", "-b", "/proc", "-b", "/sys", "-b", "${root.absolutePath}/tmp:/dev/shm",
@@ -68,7 +68,7 @@ class EmbeddedClaude(private val ctx: Context) {
             "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC" to "1",
         ) + guestEnv
         return listOf(proot.absolutePath, "--kill-on-exit", "--link2symlink", "-L", "--sysvipc",
-            "--kernel-release=6.2.1-ultracode", "-0", "-r", root.absolutePath) + binds +
+            "--kernel-release=6.2.1-ultracode", "-0", "-r", root.absolutePath) + binds + extraBinds +
             listOf("-w", cwd, "/usr/bin/env", "-i") + genv.map { "${it.key}=${it.value}" } + cmd
     }
 
@@ -111,12 +111,8 @@ class EmbeddedClaude(private val ctx: Context) {
         File(fake, "version").writeText("Linux version 6.1.0-ultracode (ultracode@localhost) #1 SMP PREEMPT\n")
     }
 
-    /**
-     * Installs everything: Alpine base (from the APK), bash/git/ripgrep (apk), official Claude Code (npm).
-     * [progress] gets a status text and an optional 0..1 value.
-     */
-    suspend fun install(progress: (String, Float?) -> Unit, localFile: android.net.Uri? = null) = withContext(Dispatchers.IO) {
-        if (!supported) throw ApiException(0, "Встроенный Claude Code работает только на 64-битных телефонах (arm64).")
+    /** Small Alpine Linux from the APK (no download), with DNS and fake /proc files. */
+    private fun prepareBase(progress: (String, Float?) -> Unit) {
         base.mkdirs()
         if (!File(root, "bin/busybox").exists()) {
             progress("Готовлю Linux-среду…", null)
@@ -129,6 +125,58 @@ class EmbeddedClaude(private val ctx: Context) {
         File(root, "tmp").apply { mkdirs(); runCatching { Os.chmod(absolutePath, 0x3ff) } }
         File(root, "root/projects").mkdirs()
         writeFakeProc()
+    }
+
+    /**
+     * Runs Python 3 code in the embedded Linux. Python is installed on first use (~10 MB).
+     * [hostDir] (the app's projects folder) is visible inside as /workspace and is the working folder.
+     */
+    suspend fun runPython(code: String, hostDir: File?, progress: (String) -> Unit = {}, timeoutSec: Long = 120): Pair<Int, String> =
+        withContext(Dispatchers.IO) {
+            if (!supported) return@withContext -1 to "Запуск Python на этом телефоне недоступен (нужен 64-битный процессор)."
+            prepareBase { t, _ -> progress(t) }
+            if (!File(root, "usr/bin/python3").exists()) {
+                progress("Устанавливаю Python (один раз, ~10 МБ)…")
+                var ok = false
+                for (mirror in listOf("https://dl-cdn.alpinelinux.org/alpine", "https://mirror.yandex.ru/mirrors/alpine")) {
+                    File(root, "etc/apk/repositories").writeText("$mirror/v3.20/main\n$mirror/v3.20/community\n")
+                    val (c, _) = exec(listOf("/sbin/apk", "add", "--no-cache", "--update-cache", "python3"), timeoutSec = 600)
+                    if (c == 0 && File(root, "usr/bin/python3").exists()) { ok = true; break }
+                }
+                if (!ok) return@withContext -1 to "Не удалось установить Python — проверьте интернет и попробуйте ещё раз."
+            }
+            progress("Выполняю…")
+            val scriptName = "ultracode_${System.currentTimeMillis()}.py"
+            val script = File(root, "tmp/$scriptName").apply { writeText(code) }
+            val extra = hostDir?.takeIf { it.isDirectory }?.let { listOf("-b", "${it.absolutePath}:/workspace") } ?: emptyList()
+            try {
+                val cmd = prootCmd(listOf("/usr/bin/python3", "-X", "utf8", "/tmp/$scriptName"),
+                    cwd = if (extra.isNotEmpty()) "/workspace" else "/root/projects",
+                    guestEnv = mapOf("PYTHONIOENCODING" to "utf-8", "PYTHONUNBUFFERED" to "1"), extraBinds = extra)
+                val pb = ProcessBuilder(cmd).redirectErrorStream(true)
+                pb.environment().putAll(env())
+                val p = pb.start()
+                p.outputStream.close()
+                val out = StringBuilder()
+                val reader = Thread { runCatching { p.inputStream.bufferedReader().forEachLine { synchronized(out) { if (out.length < 20_000 && !it.startsWith("proot warning")) out.appendLine(it) } } } }
+                reader.start()
+                val done = p.waitFor(timeoutSec, java.util.concurrent.TimeUnit.SECONDS)
+                if (!done) p.destroyForcibly()
+                reader.join(2000)
+                val text = synchronized(out) { out.toString() }.ifBlank { "(скрипт ничего не вывел)" }
+                if (done) p.exitValue() to text else -2 to "$text\nОстановлено: скрипт работал дольше $timeoutSec с"
+            } finally {
+                script.delete()
+            }
+        }
+
+    /**
+     * Installs everything: Alpine base (from the APK), bash/git/ripgrep (apk), official Claude Code (npm).
+     * [progress] gets a status text and an optional 0..1 value.
+     */
+    suspend fun install(progress: (String, Float?) -> Unit, localFile: android.net.Uri? = null) = withContext(Dispatchers.IO) {
+        if (!supported) throw ApiException(0, "Встроенный Claude Code работает только на 64-битных телефонах (arm64).")
+        prepareBase(progress)
 
         val needed = listOf("bin/bash", "usr/bin/script", "usr/bin/rg", "usr/bin/git", "usr/bin/gh", "usr/bin/curl")
         if (needed.any { !File(root, it).exists() }) {

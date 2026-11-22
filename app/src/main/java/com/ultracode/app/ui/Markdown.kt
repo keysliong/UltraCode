@@ -171,6 +171,12 @@ fun MarkdownText(text: String, modifier: Modifier = Modifier) {
     }
 }
 
+/** Extra actions under a code block (run Python, open HTML) — provided by the phone / desktop app. */
+val LocalCodeActions = androidx.compose.runtime.staticCompositionLocalOf<(@Composable (lang: String, code: String) -> Unit)?> { null }
+
+fun isPythonLang(lang: String) = lang.trim().lowercase() in setOf("python", "py", "python3")
+fun isHtmlLang(lang: String) = lang.trim().lowercase() in setOf("html", "htm", "xhtml")
+
 @Composable
 fun CodeBlock(lang: String, code: String) {
     val clip = LocalClipboardManager.current
@@ -200,6 +206,7 @@ fun CodeBlock(lang: String, code: String) {
                     .horizontalScroll(rememberScrollState())
                     .padding(start = 16.dp, end = 16.dp, bottom = 14.dp),
             )
+            LocalCodeActions.current?.invoke(lang, code)
         }
     }
 }

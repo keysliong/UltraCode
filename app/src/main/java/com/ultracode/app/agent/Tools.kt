@@ -19,6 +19,8 @@ class ToolBox(
     private val defaultRepo: String?,
     private val askUser: suspend (String, List<String>) -> String,
     private val web: WebTools? = null,
+    /** Runs Python code and returns the output (desktop: installed Python, phone: embedded Linux). */
+    private val python: (suspend (code: String) -> String)? = null,
 ) {
     private val json = com.ultracode.app.data.JsonConfig.json
 
@@ -31,6 +33,10 @@ class ToolBox(
     val webSpecs: List<ToolSpec> get() = specs.filter { it.name.startsWith("web_") }
 
     val specs: List<ToolSpec> = buildList {
+        if (python != null) {
+            add(spec("run_python", "Запустить код на Python и получить вывод (stdout/stderr). Рабочая папка — папка проекта. Используй, чтобы проверить скрипт, посчитать, обработать данные.",
+                """{"type":"object","properties":{"code":{"type":"string","description":"Код на Python 3"}},"required":["code"]}"""))
+        }
         if (web != null) {
             add(spec("web_search", "Искать в интернете (DuckDuckGo). Возвращает заголовки, ссылки и описания. Пользователь видит, какие сайты ты смотришь.",
                 """{"type":"object","properties":{"query":{"type":"string","description":"Поисковый запрос"}},"required":["query"]}"""))
@@ -81,6 +87,7 @@ class ToolBox(
         val detail = a?.let { it["url"].str() ?: it["query"].str() ?: it["path"].str() ?: it["repo"].str() ?: it["name"].str() ?: it["question"].str() } ?: ""
         val icon = when {
             name == "github_deploy_site" || name.contains("pages") -> "🚀"
+            name == "run_python" -> "▶️"
             name == "web_search" -> "🔎"
             name == "web_fetch" -> "🌐"
             name == "write_file" -> "✏️"
@@ -105,6 +112,7 @@ class ToolBox(
             fun repo() = s("repo") ?: defaultRepo ?: throw IllegalArgumentException("Не указан repo")
             val g = { gh ?: throw IllegalStateException("GitHub не подключён. Попроси пользователя добавить токен в настройках.") }
             val out = when (name) {
+                "run_python" -> (python ?: error("Python недоступен")).invoke(req("code"))
                 "web_search" -> (web ?: error("Интернет выключен")).search(req("query"))
                 "web_fetch" -> (web ?: error("Интернет выключен")).fetch(req("url"))
                 "list_files" -> ws.list(s("path") ?: "").joinToString("\n").ifEmpty { "(пусто)" }

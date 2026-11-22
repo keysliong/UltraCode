@@ -546,7 +546,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 val web = if (settings.webAccess) com.ultracode.app.agent.WebTools { src ->
                     viewModelScope.launch { if (liveSources.none { it.url == src.url }) liveSources += src }
                 } else null
-                val box = ToolBox(ws, gh, chat.repo, ::ask, web)
+                val box = ToolBox(ws, gh, chat.repo, ::ask, web, python = if (!embedded.supported) null else { code ->
+                    val (exit, out) = embedded.runPython(code, (ws as? com.ultracode.app.agent.FileWorkspace)?.let { projectsDir() })
+                    "Код выхода: $exit\n$out"
+                })
                 var tools = if (chat.agent) box.specs else box.webSpecs
                 val system = buildString {
                     append(if (chat.agent) Prompts.agent else Prompts.chat)
@@ -713,6 +716,28 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 "Подключено · " + com.ultracode.app.ai.ClaudeBridge.health(p.baseUrl, p.apiKey)
             } catch (e: Exception) {
                 "Нет связи: ${e.message}"
+            }
+        }
+    }
+
+    // ---- Python code blocks and HTML preview in the chat
+    val codeRuns = androidx.compose.runtime.mutableStateMapOf<String, String>()
+    val codeRunning = mutableStateListOf<String>()
+    var codeStatus by mutableStateOf<String?>(null); private set
+
+    private fun projectsDir() = File(ctx.getExternalFilesDir(null) ?: ctx.filesDir, "projects").apply { mkdirs() }
+
+    fun runCodeBlock(code: String) {
+        if (code in codeRunning) return
+        codeRunning += code
+        viewModelScope.launch {
+            try {
+                val (exit, out) = embedded.runPython(code, projectsDir(), progress = { codeStatus = it })
+                codeRuns[code] = (if (exit > 0) "Код выхода: $exit\n" else "") + out
+            } catch (e: Exception) {
+                codeRuns[code] = "Ошибка: ${e.message}"
+            } finally {
+                codeRunning -= code; codeStatus = null
             }
         }
     }
