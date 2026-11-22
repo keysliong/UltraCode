@@ -58,7 +58,7 @@ class Storage(context: Context) {
             if (ok.size != list[k].models.size) list[k] = list[k].copy(models = ok)
         }
         val sel = s.selectedModel
-        val fixedSel = if (!isValidModelId(sel)) {
+        val fixedSel = if (!isValidModelId(sel) || sel in s.hiddenModels || sel.startsWith("allam")) {
             list.firstOrNull { it.id == s.selectedProvider }?.models?.firstOrNull() ?: Defaults.freeModels.first()
         } else sel
         return s.copy(providers = list, selectedModel = fixedSel)
