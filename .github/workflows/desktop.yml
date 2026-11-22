@@ -74,3 +74,4 @@ jobs:
             - **macOS**: `UltraCode-*.dmg` (при первом запуске: правый клик → «Открыть»)
             - **Linux (Ubuntu/Debian)**: `ultracode_*.deb`
           files: dist/*
+          make_latest: false
