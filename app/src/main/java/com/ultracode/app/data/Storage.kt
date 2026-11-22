@@ -54,7 +54,7 @@ class Storage(context: Context) {
         }
         // Drop invalid model ids that were typed in by mistake (spaces / non-latin letters).
         for (k in list.indices) {
-            val ok = list[k].models.filter { isValidModelId(it) }
+            val ok = list[k].models.filter { isValidModelId(it) && it !in s.hiddenModels && !it.startsWith("allam") }
             if (ok.size != list[k].models.size) list[k] = list[k].copy(models = ok)
         }
         val sel = s.selectedModel

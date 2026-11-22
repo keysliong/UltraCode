@@ -228,7 +228,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 val free = LlmClient.freeModels()
                 if (free.isEmpty()) { if (!silent) toast = "OpenRouter не вернул бесплатных моделей"; return@launch }
                 val p = settings.provider(Defaults.OPENROUTER) ?: return@launch
-                val ids = free.map { it.id }
+                val ids = free.map { it.id }.filter { it !in settings.hiddenModels }
                 val removed = p.models.filter { it !in ids && it.endsWith(":free") }
                 val custom = p.models.filter { !it.endsWith(":free") }
                 updateProvider(p.copy(models = custom + ids, toolModels = free.filter { it.tools }.map { it.id }, verifiedAt = System.currentTimeMillis()))
@@ -272,6 +272,19 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         else s.copy(providers = list)
     }
 
+    /** Removes a model from the list for good (also after refreshes). */
+    fun hideModel(providerId: String, model: String) {
+        updateSettings { it.copy(hiddenModels = it.hiddenModels + model) }
+        val p = settings.provider(providerId) ?: return
+        val rest = p.models - model
+        updateProvider(p.copy(models = rest, toolModels = p.toolModels - model))
+        if (settings.selectedProvider == providerId && settings.selectedModel == model) {
+            rest.firstOrNull()?.let { selectModel(providerId, it) }
+                ?: selectModel(Defaults.OPENROUTER, settings.provider(Defaults.OPENROUTER)?.models?.firstOrNull() ?: Defaults.freeModels.first())
+        }
+        toast = "Модель ${shortName(model)} убрана из списка"
+    }
+
     /** Adds a model (typed or pasted) to a provider's list and selects it. */
     fun addModel(providerId: String, model: String) {
         val m = model.trim().removePrefix("\"").removeSuffix("\"")
@@ -285,6 +298,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             return
         }
         val p = settings.provider(providerId) ?: return
+        if (m in settings.hiddenModels) updateSettings { it.copy(hiddenModels = it.hiddenModels - m) }
         if (m !in p.models) updateProvider(p.copy(models = listOf(m) + p.models))
         selectModel(providerId, m)
         toast = "Модель ${shortName(m)} добавлена" +
@@ -299,7 +313,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             loadingModels = true
             try {
-                val models = LlmClient.listModels(p)
+                val models = LlmClient.listModels(p).filter { it !in settings.hiddenModels }
                 if (models.isEmpty()) { if (!silent) toast = "Список моделей пуст" }
                 else {
                     val cur = settings.provider(p.id) ?: p

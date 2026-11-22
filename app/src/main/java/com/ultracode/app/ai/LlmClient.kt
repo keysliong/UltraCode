@@ -318,7 +318,7 @@ object LlmClient {
                 p.baseUrl.contains("openrouter") -> parseFree(data).map { it.id }
                 // Groq also lists speech / moderation models: keep only chat models.
                 p.baseUrl.contains("groq.com") -> ids.filter { id ->
-                    listOf("whisper", "tts", "guard", "playai", "distil", "orpheus", "compound").none { id.contains(it, true) }
+                    listOf("whisper", "tts", "guard", "playai", "distil", "orpheus", "compound", "allam").none { id.contains(it, true) }
                 }.sortedWith(compareBy({ !it.contains("70b") && !it.contains("120b") && !it.contains("kimi") }, { it }))
                 else -> ids
             }

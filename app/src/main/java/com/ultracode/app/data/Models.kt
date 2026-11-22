@@ -74,6 +74,8 @@ data class AppSettings(
     val autoFallback: Boolean = true,
     /** model id -> time it was last overloaded (HTTP 429). Used to skip busy free models. */
     val busyModels: Map<String, Long> = emptyMap(),
+    /** Models the user removed from the list (they stay hidden after list refreshes). */
+    val hiddenModels: Set<String> = emptySet(),
     /** Project folder for Claude Code (inside ~/projects on the bridge). */
     val ccFolder: String = "ultracode",
     val ccAllowBash: Boolean = true,

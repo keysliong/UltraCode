@@ -638,6 +638,16 @@ private fun ModelPicker(vm: AppViewModel, onDismiss: () -> Unit, onSettings: () 
     val sheet = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var custom by remember { mutableStateOf("") }
     var target by remember { mutableStateOf(vm.settings.selectedProvider) }
+    var toHide by remember { mutableStateOf<Pair<String, String>?>(null) }
+    toHide?.let { (pid, m) ->
+        AlertDialog(
+            onDismissRequest = { toHide = null },
+            title = { Text("Убрать модель?") },
+            text = { Text("«${shortModel(m)}» пропадёт из списка и не вернётся после обновления. Вернуть можно, добавив её вручную в «Своя модель».") },
+            confirmButton = { TextButton(onClick = { vm.hideModel(pid, m); toHide = null }) { Text("Убрать") } },
+            dismissButton = { TextButton(onClick = { toHide = null }) { Text("Отмена") } },
+        )
+    }
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheet) {
         LazyColumn(
             modifier = Modifier.imePadding(),
@@ -645,6 +655,8 @@ private fun ModelPicker(vm: AppViewModel, onDismiss: () -> Unit, onSettings: () 
         ) {
             item {
                 Text("Выбор модели", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp))
+                Text("Долгое нажатие на модель — убрать её из списка", style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 24.dp))
             }
             item {
                 // Own model: typed or pasted id. At the top so the keyboard never covers it.
@@ -715,7 +727,10 @@ private fun ModelPicker(vm: AppViewModel, onDismiss: () -> Unit, onSettings: () 
                         modifier = Modifier
                             .padding(horizontal = 12.dp)
                             .clip(RoundedCornerShape(20.dp))
-                            .clickable { vm.selectModel(p.id, m); onDismiss() },
+                            .combinedClickable(
+                                onClick = { vm.selectModel(p.id, m); onDismiss() },
+                                onLongClick = { toHide = p.id to m },
+                            ),
                     )
                 }
             }
