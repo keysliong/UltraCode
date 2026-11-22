@@ -52,7 +52,16 @@ class Storage(context: Context) {
             val bytes = ByteArray(16).also { java.security.SecureRandom().nextBytes(it) }
             list[cc] = list[cc].copy(apiKey = bytes.joinToString("") { "%02x".format(it) })
         }
-        return s.copy(providers = list)
+        // Drop invalid model ids that were typed in by mistake (spaces / non-latin letters).
+        for (k in list.indices) {
+            val ok = list[k].models.filter { m -> m.isNotBlank() && m.none { it.isWhitespace() } && m.all { it.code in 33..126 } }
+            if (ok.size != list[k].models.size) list[k] = list[k].copy(models = ok)
+        }
+        val sel = s.selectedModel
+        val fixedSel = if (sel.any { it.isWhitespace() } || sel.any { it.code !in 33..126 }) {
+            list.firstOrNull { it.id == s.selectedProvider }?.models?.firstOrNull() ?: Defaults.freeModels.first()
+        } else sel
+        return s.copy(providers = list, selectedModel = fixedSel)
     }
 
     companion object {

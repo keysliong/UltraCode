@@ -95,6 +95,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         return preferredFallbacks.firstOrNull { it in ranked && !isBusy(it) } ?: ranked.firstOrNull()
     }
 
+    /** Model ids are ASCII without spaces (e.g. "llama-3.3-70b-versatile", "qwen/qwen3-coder:free"). */
+    fun validModelId(m: String) = m.isNotBlank() && m.none { it.isWhitespace() } && m.all { it.code in 33..126 }
+
     private fun shortName(m: String) = m.substringAfter('/').removeSuffix(":free")
 
     private val preferredFallbacks = listOf(
@@ -150,6 +153,23 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                         ?: throw com.ultracode.app.ai.ApiException(e.code, "Модель ${shortName(usedModel)} больше не бесплатная, а других бесплатных не найдено. Нажмите ⟳ в списке моделей.")
                     toast = "${shortName(usedModel)} больше не бесплатная — отвечает ${shortName(next)}"
                     if (settings.selectedModel == usedModel) selectModel(p.id, next)
+                    usedModel = next
+                    attempt = 0
+                    continue
+                }
+                // Model id does not exist at this provider (typo / renamed): drop it and use a working one.
+                val unknownModel = p.id != Defaults.OPENROUTER && (e.code == 404 || e.code == 400) &&
+                    (msg.contains("does not exist", true) || msg.contains("model_not_found", true) ||
+                        msg.contains("not found", true) || msg.contains("invalid model", true) || msg.contains("unknown model", true))
+                if (unknownModel) {
+                    val bad = usedModel
+                    val next = settings.provider(p.id)?.models?.firstOrNull { it != bad && validModelId(it) }
+                    dropModel(p.id, bad)
+                    if (next == null || bad in tried) throw com.ultracode.app.ai.ApiException(e.code,
+                        "У «${p.name}» нет модели «$bad» — убрал её из списка. Выберите модель из списка или нажмите «Обновить список» в настройках.")
+                    tried += bad
+                    toast = "Модели «$bad» нет у ${p.name} — отвечает ${shortName(next)}"
+                    if (settings.selectedModel == bad) selectModel(p.id, next)
                     usedModel = next
                     attempt = 0
                     continue
@@ -253,6 +273,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun addModel(providerId: String, model: String) {
         val m = model.trim().removePrefix("\"").removeSuffix("\"")
         if (m.isEmpty()) return
+        if (!validModelId(m)) {
+            toast = "Это не ID модели. Впишите точное название латиницей без пробелов, например llama-3.3-70b-versatile"
+            return
+        }
         val p = settings.provider(providerId) ?: return
         if (m !in p.models) updateProvider(p.copy(models = listOf(m) + p.models))
         selectModel(providerId, m)
