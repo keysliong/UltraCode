@@ -287,7 +287,7 @@ private fun EmptyState(onSuggestion: (String) -> Unit) {
         Spacer(Modifier.height(16.dp))
         Text("UltraCode", style = MaterialTheme.typography.headlineMedium)
         Text(
-            "Пиши код, создавай приложения для телефона и ПК, работай с GitHub",
+            "Спрашивай что угодно: советы, тексты, учёба, код и приложения",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(top = 4.dp, bottom = 20.dp),
@@ -533,7 +533,7 @@ private fun InputBar(vm: AppViewModel) {
                 TextField(
                     value = text,
                     onValueChange = { text = it },
-                    placeholder = { Text(if (vm.current?.agent != false) "Опиши задачу для агента…" else "Сообщение…") },
+                    placeholder = { Text(if (vm.current?.agent != false) "Спроси что угодно или опиши задачу…" else "Сообщение…") },
                     maxLines = 6,
                     modifier = Modifier.weight(1f),
                     colors = TextFieldDefaults.colors(

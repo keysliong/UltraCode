@@ -296,7 +296,7 @@ fun EmptyState(onSuggestion: (String) -> Unit) {
         CookieBadge(size = 96.dp, container = MaterialTheme.colorScheme.primaryContainer) { Icon(Icons.Outlined.Code, null, Modifier.size(44.dp)) }
         Spacer(Modifier.height(16.dp))
         Text("UltraCode", style = MaterialTheme.typography.headlineMedium)
-        Text("Пиши код, создавай приложения и сайты, работай с GitHub", color = MaterialTheme.colorScheme.onSurfaceVariant,
+        Text("Спрашивай что угодно: советы, тексты, учёба, код и приложения", color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(top = 4.dp, bottom = 20.dp))
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally), verticalArrangement = Arrangement.spacedBy(8.dp),
             modifier = Modifier.widthIn(max = 720.dp)) {
@@ -429,7 +429,7 @@ fun InputBar(state: DesktopState, frame: java.awt.Frame) {
                 }, size = 44.dp, lobes = 6, container = MaterialTheme.colorScheme.secondaryContainer) { Icon(Icons.Outlined.AddPhotoAlternate, "Фото") }
                 TextField(
                     value = state.draft, onValueChange = { state.draft = it },
-                    placeholder = { Text(if (state.current?.agent != false) "Опиши задачу для агента… (Enter — отправить, Shift+Enter — новая строка)" else "Сообщение…") },
+                    placeholder = { Text(if (state.current?.agent != false) "Спроси что угодно или опиши задачу… (Enter — отправить, Shift+Enter — новая строка)" else "Сообщение…") },
                     maxLines = 8,
                     modifier = Modifier.weight(1f).onPreviewKeyEvent { e ->
                         if (e.type == KeyEventType.KeyDown && e.key == Key.Enter && !e.isShiftPressed) { submit(); true } else false
