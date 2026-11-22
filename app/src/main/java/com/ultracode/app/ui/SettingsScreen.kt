@@ -20,6 +20,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Bolt
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.material.icons.automirrored.outlined.Login
 import androidx.compose.material.icons.outlined.Download
@@ -145,6 +146,24 @@ fun SettingsScreen(vm: AppViewModel, onBack: () -> Unit, onClaude: () -> Unit = 
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     TextButton(onClick = { openUrl(ctx, claude.keyUrl) }) { Text("Войти и получить ключ") }
                     if (claude.apiKey.isNotBlank()) TextButton(onClick = { vm.refreshModels(claude) }) { Text("Обновить модели") }
+                }
+            }
+
+            val groq = s.provider(Defaults.GROQ)
+            if (groq != null) Section(Icons.Outlined.Bolt, "Groq") {
+                Text(
+                    "Очень быстрые модели: Llama 3.3 70B, GPT-OSS 120B, Kimi K2, Qwen3. Бесплатно с ключом Groq " +
+                        "(регистрация за минуту, у бесплатного тарифа есть лимиты в минуту и в день).",
+                    style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                KeyField("Ключ Groq (gsk_…)", groq.apiKey) { vm.updateProvider(groq.copy(apiKey = it)) }
+                AddModelRow("Добавить модель Groq", "например llama-3.3-70b-versatile") { vm.addModel(groq.id, it) }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    TextButton(onClick = { openUrl(ctx, groq.keyUrl) }) { Text("Получить ключ") }
+                    if (groq.apiKey.isNotBlank()) TextButton(onClick = { vm.refreshModels(groq) }, enabled = !vm.loadingModels) {
+                        Icon(Icons.Outlined.Refresh, null, Modifier.size(18.dp)); Spacer(Modifier.size(6.dp))
+                        Text("Обновить список (${groq.models.size})")
+                    }
                 }
             }
 

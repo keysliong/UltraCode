@@ -39,7 +39,7 @@ class Storage(context: Context) {
         val list = s.providers.toMutableList()
         for (b in Defaults.providers) {
             val i = list.indexOfFirst { it.id == b.id }
-            if (i < 0) list.add(0, b)
+            if (i < 0) list.add(list.indexOfLast { it.builtin } + 1, b)
             else list[i] = list[i].copy(
                 name = b.name, kind = b.kind, builtin = true, keyUrl = b.keyUrl,
                 baseUrl = if (b.kind == ProviderKind.CLAUDE_CODE) list[i].baseUrl.ifBlank { b.baseUrl } else list[i].baseUrl,

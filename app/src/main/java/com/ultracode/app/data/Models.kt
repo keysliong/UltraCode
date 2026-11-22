@@ -85,6 +85,19 @@ object Defaults {
     const val ANTHROPIC = "anthropic"
     const val OPENROUTER = "openrouter"
     const val CLAUDE_CODE = "claude_code"
+    const val GROQ = "groq"
+
+    /** Groq: very fast, free tier with a key from console.groq.com. Refreshable from the app. */
+    val groqModels = listOf(
+        "llama-3.3-70b-versatile",
+        "openai/gpt-oss-120b",
+        "openai/gpt-oss-20b",
+        "moonshotai/kimi-k2-instruct",
+        "qwen/qwen3-32b",
+        "meta-llama/llama-4-maverick-17b-128e-instruct",
+        "meta-llama/llama-4-scout-17b-16e-instruct",
+        "llama-3.1-8b-instant",
+    )
     /** Claude Code runs inside UltraCode (no Termux / computer). */
     const val EMBEDDED = "embedded"
 
@@ -156,6 +169,15 @@ object Defaults {
             builtin = true,
             keyUrl = "https://openrouter.ai/settings/keys",
         ),
+        ProviderConfig(
+            id = GROQ,
+            name = "Groq",
+            kind = ProviderKind.OPENAI,
+            baseUrl = "https://api.groq.com/openai/v1",
+            models = groqModels,
+            builtin = true,
+            keyUrl = "https://console.groq.com/keys",
+        ),
     )
 
     /** Presets for "connect your own neural network". */
@@ -164,7 +186,6 @@ object Defaults {
     val presets = listOf(
         Preset("DeepSeek", ProviderKind.OPENAI, "https://api.deepseek.com/v1", "deepseek-chat, deepseek-reasoner", keyUrl = "https://platform.deepseek.com/api_keys"),
         Preset("GLM (Zhipu)", ProviderKind.OPENAI, "https://open.bigmodel.cn/api/paas/v4", "glm-4.5-flash, glm-4.6", keyUrl = "https://open.bigmodel.cn/usercenter/apikeys"),
-        Preset("Groq", ProviderKind.OPENAI, "https://api.groq.com/openai/v1", "llama-3.3-70b-versatile, qwen/qwen3-32b", keyUrl = "https://console.groq.com/keys"),
         Preset("Gemini", ProviderKind.OPENAI, "https://generativelanguage.googleapis.com/v1beta/openai", "gemini-2.5-flash, gemini-2.5-pro", keyUrl = "https://aistudio.google.com/apikey"),
         Preset("Mistral", ProviderKind.OPENAI, "https://api.mistral.ai/v1", "codestral-latest, mistral-large-latest", keyUrl = "https://console.mistral.ai/api-keys"),
         Preset("GitHub Models (бесплатный лимит)", ProviderKind.OPENAI, "https://models.github.ai/inference", "openai/gpt-4.1, openai/gpt-4o, deepseek/DeepSeek-V3-0324, deepseek/DeepSeek-R1, meta/Llama-4-Maverick-17B-128E-Instruct-FP8, xai/grok-3-mini, mistral-ai/Codestral-2501", keyUrl = "https://github.com/settings/tokens"),

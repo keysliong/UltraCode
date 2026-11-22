@@ -158,7 +158,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 if (msg.contains("per-day", true) || msg.contains("per day", true)) throw com.ultracode.app.ai.ApiException(429,
                     "Закончился дневной лимит бесплатных запросов OpenRouter (около 50 в день без пополнения баланса). " +
                         "Он сбросится через сутки. Варианты: пополнить OpenRouter на 10$ (лимит станет 1000 в день) " +
-                        "или подключить другую бесплатную нейросеть в настройках — GitHub Models, Groq, Gemini, Cerebras.")
+                        "или подключить Groq в настройках (бесплатный ключ) и выбрать его модель.")
                 attempt++
                 // A model that was overloaded recently: switch right away instead of waiting.
                 val knownBusy = isBusy(usedModel) && p.id == Defaults.OPENROUTER && settings.autoFallback
@@ -675,9 +675,13 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     /** If Claude Code hit the subscription limit, picks a free model (with tool support) to continue. */
     private fun claudeLimitFallback(e: Exception): Pair<ProviderConfig, String>? {
         if (!isClaudeLimit(e.message.orEmpty()) || !settings.autoFallback) return null
-        val free = settings.provider(Defaults.OPENROUTER)?.takeIf { it.apiKey.isNotBlank() } ?: return null
-        val model = pickFree(free.id, emptySet(), needTools = true) ?: return null
-        return free to model
+        settings.provider(Defaults.OPENROUTER)?.takeIf { it.apiKey.isNotBlank() }?.let { free ->
+            pickFree(free.id, emptySet(), needTools = true)?.let { return free to it }
+        }
+        // Groq as the second option.
+        val groq = settings.provider(Defaults.GROQ)?.takeIf { it.apiKey.isNotBlank() && it.models.isNotEmpty() } ?: return null
+        val m = groq.models.firstOrNull { it.contains("70b") || it.contains("kimi") || it.contains("120b") } ?: groq.models.first()
+        return groq to m
     }
 
     /** Messages Claude Code has not seen yet (answered by other models), as a transcript. */
