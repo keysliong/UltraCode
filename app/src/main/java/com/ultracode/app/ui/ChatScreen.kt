@@ -41,6 +41,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.material.icons.outlined.AddPhotoAlternate
 import androidx.compose.material.icons.outlined.ChatBubbleOutline
 import androidx.compose.material.icons.outlined.Code
@@ -115,7 +116,7 @@ import java.util.Date
 import java.util.Locale
 
 @Composable
-fun ChatScreen(vm: AppViewModel, onSettings: () -> Unit, onRepos: () -> Unit, onClaude: () -> Unit = {}) {
+fun ChatScreen(vm: AppViewModel, onSettings: () -> Unit, onRepos: () -> Unit, onClaude: () -> Unit = {}, onTerminal: () -> Unit = {}) {
     val drawer = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
     val snack = remember { SnackbarHostState() }
@@ -142,6 +143,7 @@ fun ChatScreen(vm: AppViewModel, onSettings: () -> Unit, onRepos: () -> Unit, on
                 onSettings = { scope.launch { drawer.close() }; onSettings() },
                 onRepos = { scope.launch { drawer.close() }; onRepos() },
                 onClaude = { scope.launch { drawer.close() }; onClaude() },
+                onTerminal = { scope.launch { drawer.close() }; onTerminal() },
             )
         },
     ) {
@@ -567,6 +569,7 @@ private fun HistoryDrawer(
     onSettings: () -> Unit,
     onRepos: () -> Unit,
     onClaude: () -> Unit,
+    onTerminal: () -> Unit = {},
 ) {
     var toDelete by remember { mutableStateOf<com.ultracode.app.data.Chat?>(null) }
     ModalDrawerSheet(drawerShape = RoundedCornerShape(topEnd = 32.dp, bottomEnd = 32.dp)) {
@@ -615,6 +618,11 @@ private fun HistoryDrawer(
             label = { Text(if (vm.settings.githubLogin.isNotBlank()) "GitHub · ${vm.settings.githubLogin}" else "Подключить GitHub") },
             icon = { Icon(Icons.Outlined.Code, null) },
             selected = false, onClick = onRepos, modifier = Modifier.padding(horizontal = 12.dp),
+        )
+        NavigationDrawerItem(
+            label = { Text("Терминал") },
+            icon = { Icon(Icons.Filled.Terminal, null) },
+            selected = false, onClick = onTerminal, modifier = Modifier.padding(horizontal = 12.dp),
         )
         NavigationDrawerItem(
             label = { Text("Настройки") },

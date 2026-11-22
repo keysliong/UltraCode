@@ -16,6 +16,8 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.getValue
@@ -57,7 +59,16 @@ class MainActivity : ComponentActivity() {
                         when (s) {
                             "settings" -> SettingsScreen(vm, onBack = { screen = "chat" }, onClaude = { openClaude() })
                             "repos" -> ReposScreen(vm, onBack = { screen = "chat" })
-                            else -> ChatScreen(vm, onSettings = { screen = "settings" }, onRepos = { screen = "repos" }, onClaude = { openClaude() })
+                            "terminal" -> {
+                                androidx.compose.runtime.LaunchedEffect(Unit) { vm.openTerminal() }
+                                com.ultracode.app.term.TerminalView(
+                                    session = vm.terminal, title = "Linux · /workspace (папка проектов)", status = vm.terminalStatus,
+                                    quick = listOf("python", "python main.py", "pip install requests", "ls", "cat ", "git status"),
+                                    onBack = { screen = "chat" },
+                                    modifier = Modifier.systemBarsPadding().imePadding(),
+                                )
+                            }
+                            else -> ChatScreen(vm, onSettings = { screen = "settings" }, onRepos = { screen = "repos" }, onClaude = { openClaude() }, onTerminal = { screen = "terminal" })
                         }
                     }
                 }

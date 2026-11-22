@@ -27,6 +27,7 @@ sourceSets {
                 "com/ultracode/app/github/**",
                 "com/ultracode/app/ui/Cookie.kt",
                 "com/ultracode/app/ui/Markdown.kt",
+                "com/ultracode/app/term/**",
             )
         }
     }

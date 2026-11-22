@@ -131,6 +131,34 @@ class EmbeddedClaude(private val ctx: Context) {
      * Runs Python 3 code in the embedded Linux. Python is installed on first use (~10 MB).
      * [hostDir] (the app's projects folder) is visible inside as /workspace and is the working folder.
      */
+    /** Prepares bash + Python + pip for the terminal (first time ~15 MB). */
+    suspend fun prepareTerminal(progress: (String) -> Unit): String? = withContext(Dispatchers.IO) {
+        if (!supported) return@withContext "Терминал на этом телефоне недоступен (нужен 64-битный процессор)."
+        prepareBase { t, _ -> progress(t) }
+        val need = listOf("bin/bash", "usr/bin/python3", "usr/bin/pip3")
+        if (need.any { !File(root, it).exists() }) {
+            progress("Устанавливаю bash, Python и pip (один раз)…")
+            for (mirror in listOf("https://dl-cdn.alpinelinux.org/alpine", "https://mirror.yandex.ru/mirrors/alpine")) {
+                File(root, "etc/apk/repositories").writeText("$mirror/v3.20/main\n$mirror/v3.20/community\n")
+                val (c, _) = exec(listOf("/sbin/apk", "add", "--no-cache", "--update-cache", "bash", "python3", "py3-pip", "nano", "curl", "git"), timeoutSec = 900)
+                if (c == 0 && need.all { File(root, it).exists() }) break
+            }
+            if (need.any { !File(root, it).exists() }) return@withContext "Не удалось установить пакеты — проверьте интернет и откройте терминал ещё раз."
+        }
+        null
+    }
+
+    /** Shell process for the terminal; the app's projects folder is /workspace. */
+    fun startShell(hostDir: File): Process {
+        hostDir.mkdirs()
+        val cmd = prootCmd(listOf("/bin/bash", "--noprofile", "--norc"), cwd = "/workspace",
+            guestEnv = mapOf("PYTHONIOENCODING" to "utf-8", "PYTHONUNBUFFERED" to "1", "PIP_BREAK_SYSTEM_PACKAGES" to "1"),
+            extraBinds = listOf("-b", "${hostDir.absolutePath}:/workspace"))
+        val pb = ProcessBuilder(cmd).redirectErrorStream(true)
+        pb.environment().putAll(env())
+        return pb.start()
+    }
+
     suspend fun runPython(code: String, hostDir: File?, progress: (String) -> Unit = {}, timeoutSec: Long = 120): Pair<Int, String> =
         withContext(Dispatchers.IO) {
             if (!supported) return@withContext -1 to "Запуск Python на этом телефоне недоступен (нужен 64-битный процессор)."

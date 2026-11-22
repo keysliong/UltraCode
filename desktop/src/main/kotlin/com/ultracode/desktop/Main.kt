@@ -39,6 +39,7 @@ import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.outlined.AddPhotoAlternate
 import androidx.compose.material.icons.outlined.ArrowDropDown
@@ -188,6 +189,11 @@ fun App(state: DesktopState, frame: java.awt.Frame) {
                 when (state.screen) {
                     "settings" -> SettingsPane(state)
                     "repos" -> ReposPane(state)
+                    "terminal" -> com.ultracode.app.term.TerminalView(
+                        session = state.terminal, title = state.workspaceDir().absolutePath, status = null,
+                        quick = listOf("python", "python main.py", "pip install requests", if (LocalClaude.isWindows) "dir" else "ls", "git status"),
+                        onBack = { state.screen = "chat" },
+                    )
                     else -> ChatPane(state, frame)
                 }
             }
@@ -237,6 +243,10 @@ fun Sidebar(state: DesktopState) {
                 label = { Text(if (state.settings.githubLogin.isNotBlank()) "GitHub · ${state.settings.githubLogin}" else "Подключить GitHub") },
                 icon = { Icon(Icons.Outlined.Code, null) }, selected = state.screen == "repos",
                 onClick = { state.screen = "repos"; state.loadRepos() }, modifier = Modifier.padding(horizontal = 10.dp),
+            )
+            NavigationDrawerItem(
+                label = { Text("Терминал") }, icon = { Icon(Icons.Filled.Terminal, null) }, selected = state.screen == "terminal",
+                onClick = { state.openTerminal() }, modifier = Modifier.padding(horizontal = 10.dp),
             )
             NavigationDrawerItem(
                 label = { Text("Настройки") }, icon = { Icon(Icons.Outlined.Settings, null) }, selected = state.screen == "settings",

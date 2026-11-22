@@ -270,6 +270,28 @@ class DesktopState {
         toast = "В терминале введите /login → «Claude account with subscription», затем нажмите «Проверить»"
     }
 
+    // ------------------------------------------------------------ terminal (system shell in the workspace)
+
+    val terminal: com.ultracode.app.term.TerminalSession by lazy {
+        com.ultracode.app.term.TerminalSession(
+            start = {
+                val cmd = if (LocalClaude.isWindows) listOf("cmd.exe", "/Q", "/K", "chcp 65001>nul & prompt \$+\$G")
+                else listOf(File("/bin/bash").takeIf { it.exists() }?.path ?: "/bin/sh")
+                val pb = ProcessBuilder(cmd).directory(workspaceDir()).redirectErrorStream(true)
+                pb.environment()["PYTHONIOENCODING"] = "utf-8"
+                pb.environment()["PYTHONUNBUFFERED"] = "1"
+                pb.start()
+            },
+            // Also stop programs started from the terminal (python, pip...).
+            kill = { p -> p.descendants().forEach { it.destroyForcibly() }; p.destroyForcibly() },
+        ).also {
+            it.lines += "Терминал UltraCode · папка: ${workspaceDir().absolutePath}"
+            it.lines += "Попробуйте: python  ·  pip install requests  ·  " + if (LocalClaude.isWindows) "dir" else "ls"
+        }
+    }
+
+    fun openTerminal() { terminal.open(); screen = "terminal" }
+
     // ------------------------------------------------------------ code blocks (run Python)
 
     /** Output of Python code blocks run from the chat (key = code). */

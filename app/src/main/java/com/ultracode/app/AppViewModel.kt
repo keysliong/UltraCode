@@ -727,6 +727,28 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun projectsDir() = File(ctx.getExternalFilesDir(null) ?: ctx.filesDir, "projects").apply { mkdirs() }
 
+    // ---- Terminal (embedded Linux: bash, python, pip)
+    var terminal by mutableStateOf<com.ultracode.app.term.TerminalSession?>(null); private set
+    var terminalStatus by mutableStateOf<String?>(null); private set
+
+    fun openTerminal() {
+        if (terminal != null || terminalStatus != null) return
+        viewModelScope.launch {
+            terminalStatus = "Готовлю терминал…"
+            val err = embedded.prepareTerminal { terminalStatus = it }
+            terminalStatus = null
+            if (err != null) { toast = err; return@launch }
+            val dir = projectsDir()
+            terminal = com.ultracode.app.term.TerminalSession(start = { embedded.startShell(dir) }).also {
+                it.lines += "Терминал UltraCode (Linux). Папка проектов: /workspace"
+                it.lines += "Попробуйте: python  ·  pip install requests  ·  ls"
+                it.open()
+            }
+        }
+    }
+
+    override fun onCleared() { terminal?.stop(); super.onCleared() }
+
     fun runCodeBlock(code: String) {
         if (code in codeRunning) return
         codeRunning += code
