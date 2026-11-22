@@ -51,7 +51,7 @@ compose.desktop {
             targetFormats(TargetFormat.Msi, TargetFormat.Exe, TargetFormat.Dmg, TargetFormat.Deb)
             packageName = "UltraCode"
             packageVersion = appVersion
-            description = "UltraCode — ИИ-агент для программирования"
+            description = "UltraCode - AI coding agent"
             vendor = "UltraCode"
             modules("java.naming", "jdk.crypto.ec", "java.net.http")
             windows {

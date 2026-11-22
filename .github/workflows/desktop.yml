@@ -36,7 +36,11 @@ jobs:
         shell: bash
         run: |
           chmod +x gradlew
-          ./gradlew :desktop:packageDistributionForCurrentOS --no-daemon
+          ./gradlew :desktop:packageDistributionForCurrentOS --no-daemon || {
+            echo "---- jpackage logs ----"
+            find desktop/build/compose/logs -type f -exec sh -c 'echo "== $1"; cat "$1"' _ {} \;
+            exit 1
+          }
 
       - name: Collect files
         shell: bash
