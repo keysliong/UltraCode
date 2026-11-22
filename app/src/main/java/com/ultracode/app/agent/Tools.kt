@@ -2,7 +2,6 @@ package com.ultracode.app.agent
 
 import com.ultracode.app.ai.ToolSpec
 import com.ultracode.app.ai.str
-import com.ultracode.app.data.Storage
 import com.ultracode.app.github.GitHub
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -21,7 +20,7 @@ class ToolBox(
     private val askUser: suspend (String, List<String>) -> String,
     private val web: WebTools? = null,
 ) {
-    private val json = Storage.json
+    private val json = com.ultracode.app.data.JsonConfig.json
 
     private fun spec(name: String, desc: String, schema: String) =
         ToolSpec(name, desc, json.parseToJsonElement(schema).jsonObject)

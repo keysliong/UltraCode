@@ -1,6 +1,5 @@
 package com.ultracode.app.ai
 
-import com.ultracode.app.data.Storage
 import com.ultracode.app.data.WebSource
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -22,7 +21,7 @@ class ClaudeStreamParser(
     fun line(raw: String) {
         val d = raw.trim()
         if (!d.startsWith("{")) return
-        val o = runCatching { Storage.json.parseToJsonElement(d).jsonObject }.getOrNull() ?: return
+        val o = runCatching { com.ultracode.app.data.JsonConfig.json.parseToJsonElement(d).jsonObject }.getOrNull() ?: return
         o["session_id"].str()?.let { if (it != sessionId) { sessionId = it; onSession(it) } }
         when (o["type"].str()) {
             "stream_event" -> {

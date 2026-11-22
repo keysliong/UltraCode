@@ -58,7 +58,7 @@ object LlmClient {
         .build()
 
     private val JSON = "application/json".toMediaType()
-    private val json = com.ultracode.app.data.Storage.json
+    private val json = com.ultracode.app.data.JsonConfig.json
 
     suspend fun complete(
         p: ProviderConfig,

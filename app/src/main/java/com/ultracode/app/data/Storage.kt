@@ -73,10 +73,6 @@ class Storage(context: Context) {
         fun isValidModelId(m: String) = m.isNotBlank() && m.none { it.isWhitespace() } &&
             m.all { it.code in 33..126 } && !looksLikeKey(m)
 
-        val json = Json {
-            ignoreUnknownKeys = true
-            encodeDefaults = true
-            isLenient = true
-        }
+        val json = JsonConfig.json
     }
 }

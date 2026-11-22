@@ -1,6 +1,5 @@
 package com.ultracode.app.agent
 
-import android.text.Html
 import com.ultracode.app.ai.LlmClient
 import com.ultracode.app.data.WebSource
 import kotlinx.coroutines.Dispatchers
@@ -13,8 +12,14 @@ import java.net.URLEncoder
 class WebTools(private val onVisit: (WebSource) -> Unit) {
     private val ua = "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Mobile Safari/537.36"
 
-    private fun clean(html: String): String =
-        Html.fromHtml(html, Html.FROM_HTML_MODE_COMPACT).toString().replace(Regex("\\s+"), " ").trim()
+    private fun clean(html: String): String = decode(html.replace(Regex("<[^>]+>"), " ")).replace(Regex("\\s+"), " ").trim()
+
+    /** HTML entities -> text (works on phone and desktop). */
+    private fun decode(s: String): String = s
+        .replace(Regex("&#(\\d+);")) { m -> m.groupValues[1].toIntOrNull()?.let { String(Character.toChars(it)) } ?: m.value }
+        .replace(Regex("&#[xX]([0-9a-fA-F]+);")) { m -> m.groupValues[1].toIntOrNull(16)?.let { String(Character.toChars(it)) } ?: m.value }
+        .replace("&nbsp;", " ").replace("&quot;", "\"").replace("&#39;", "'").replace("&apos;", "'")
+        .replace("&lt;", "<").replace("&gt;", ">").replace("&amp;", "&")
 
     suspend fun search(query: String): String = withContext(Dispatchers.IO) {
         val url = "https://html.duckduckgo.com/html/?q=" + URLEncoder.encode(query, "UTF-8")
@@ -27,7 +32,7 @@ class WebTools(private val onVisit: (WebSource) -> Unit) {
         val snippets = Regex("""class="result__snippet"[^>]*>(.*?)</a>""", RegexOption.DOT_MATCHES_ALL).findAll(html).map { clean(it.groupValues[1]) }.toList()
         if (links.isEmpty()) return@withContext "Ничего не найдено по запросу «$query»"
         links.take(8).mapIndexed { i, m ->
-            var href = Html.fromHtml(m.groupValues[1], Html.FROM_HTML_MODE_COMPACT).toString()
+            var href = decode(m.groupValues[1])
             Regex("uddg=([^&]+)").find(href)?.let { href = URLDecoder.decode(it.groupValues[1], "UTF-8") }
             if (href.startsWith("//")) href = "https:$href"
             "${i + 1}. ${clean(m.groupValues[2])}\n   $href\n   ${snippets.getOrNull(i) ?: ""}"

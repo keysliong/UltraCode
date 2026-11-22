@@ -1,10 +1,9 @@
 package com.ultracode.app.github
 
-import android.util.Base64
+import java.util.Base64
 import com.ultracode.app.ai.ApiException
 import com.ultracode.app.ai.LlmClient
 import com.ultracode.app.ai.str
-import com.ultracode.app.data.Storage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonArray
@@ -35,7 +34,7 @@ data class RepoInfo(
 
 class GitHub(private val token: String) {
     private val api = "https://api.github.com"
-    private val json = Storage.json
+    private val json = com.ultracode.app.data.JsonConfig.json
 
     private fun enc(path: String) = path.split('/').joinToString("/") { URLEncoder.encode(it, "UTF-8").replace("+", "%20") }
 
@@ -105,7 +104,7 @@ class GitHub(private val token: String) {
         val sha = runCatching { obj("/repos/$repo/contents/${enc(path)}$q")["sha"].str() }.getOrNull()
         val res = obj("/repos/$repo/contents/${enc(path)}", "PUT", buildJsonObject {
             put("message", message)
-            put("content", Base64.encodeToString(content, Base64.NO_WRAP))
+            put("content", Base64.getEncoder().encodeToString(content))
             if (sha != null) put("sha", sha)
             if (!branch.isNullOrBlank()) put("branch", branch)
         })
@@ -125,7 +124,7 @@ class GitHub(private val token: String) {
         val baseTree = obj("/repos/$repo/git/commits/$headSha")["tree"]!!.jsonObject["sha"].str()!!
         val entries = files.map { (path, bytes) ->
             val blob = obj("/repos/$repo/git/blobs", "POST", buildJsonObject {
-                put("content", Base64.encodeToString(bytes, Base64.NO_WRAP)); put("encoding", "base64")
+                put("content", Base64.getEncoder().encodeToString(bytes)); put("encoding", "base64")
             })["sha"].str()!!
             path to blob
         }

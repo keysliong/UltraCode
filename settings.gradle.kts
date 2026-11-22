@@ -14,3 +14,4 @@ dependencyResolutionManagement {
 }
 rootProject.name = "UltraCode"
 include(":app")
+include(":desktop")

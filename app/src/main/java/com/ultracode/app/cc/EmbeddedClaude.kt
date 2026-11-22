@@ -8,7 +8,6 @@ import com.ultracode.app.ai.ClaudeBridge
 import com.ultracode.app.ai.ClaudeStreamParser
 import com.ultracode.app.ai.LlmClient
 import com.ultracode.app.ai.str
-import com.ultracode.app.data.Storage
 import com.ultracode.app.data.WebSource
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
@@ -226,7 +225,7 @@ class EmbeddedClaude(private val ctx: Context) {
     private suspend fun downloadOfficial(dest: File, progress: (String, Float?) -> Unit) = withContext(Dispatchers.IO) {
         progress("Узнаю последнюю версию Claude Code…", null)
         val version = getText("$gcs/latest").trim()
-        val manifest = Storage.json.parseToJsonElement(getText("$gcs/$version/manifest.json")).jsonObject
+        val manifest = com.ultracode.app.data.JsonConfig.json.parseToJsonElement(getText("$gcs/$version/manifest.json")).jsonObject
         val plat = manifest["platforms"]?.jsonObject?.get("linux-arm64-musl")?.jsonObject
         val sum = plat?.get("checksum").str()
         download("$gcs/$version/linux-arm64-musl/claude", dest, progress)
@@ -252,7 +251,7 @@ class EmbeddedClaude(private val ctx: Context) {
 
     /** npm package @anthropic-ai/claude-code-linux-arm64-musl (tgz) from [registry]. */
     private suspend fun downloadNpm(registry: String, dest: File, progress: (String, Float?) -> Unit) = withContext(Dispatchers.IO) {
-        val meta = Storage.json.parseToJsonElement(getText("$registry/@anthropic-ai/claude-code-linux-arm64-musl/latest")).jsonObject
+        val meta = com.ultracode.app.data.JsonConfig.json.parseToJsonElement(getText("$registry/@anthropic-ai/claude-code-linux-arm64-musl/latest")).jsonObject
         val url = meta["dist"]?.jsonObject?.get("tarball").str() ?: throw ApiException(0, "npm: нет файла")
         val tgz = File(base, "claude-code.tgz")
         download(url, tgz, progress)

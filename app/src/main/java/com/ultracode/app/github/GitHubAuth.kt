@@ -3,7 +3,6 @@ package com.ultracode.app.github
 import com.ultracode.app.ai.ApiException
 import com.ultracode.app.ai.LlmClient
 import com.ultracode.app.ai.str
-import com.ultracode.app.data.Storage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -33,7 +32,7 @@ object GitHubAuth {
         LlmClient.http.newCall(req).execute().use { r ->
             val s = r.body?.string().orEmpty()
             if (!r.isSuccessful) throw ApiException(r.code, "GitHub ${r.code}: ${s.take(200)}")
-            Storage.json.parseToJsonElement(s).jsonObject
+            com.ultracode.app.data.JsonConfig.json.parseToJsonElement(s).jsonObject
         }
     }
 

@@ -1,6 +1,5 @@
 package com.ultracode.app.ai
 
-import com.ultracode.app.data.Storage
 import com.ultracode.app.data.WebSource
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.awaitCancellation
@@ -30,7 +29,7 @@ object ClaudeBridge {
         .connectTimeout(8, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.MINUTES)
         .build()
-    private val json = Storage.json
+    private val json = com.ultracode.app.data.JsonConfig.json
 
     data class Result(val text: String, val session: String?)
 
@@ -97,7 +96,7 @@ object ClaudeBridge {
                 images.forEach { f ->
                     add(buildJsonObject {
                         put("name", f.name)
-                        put("data", android.util.Base64.encodeToString(f.readBytes(), android.util.Base64.NO_WRAP))
+                        put("data", java.util.Base64.getEncoder().encodeToString(f.readBytes()))
                     })
                 }
             })
@@ -140,7 +139,7 @@ object ClaudeBridge {
 
     /** One command for Termux: Debian (proot) + official Claude Code + the bridge + uc-login / uc-bridge commands. */
     fun termuxInstallCommand(bridgeJs: String, token: String): String {
-        val b64 = android.util.Base64.encodeToString(bridgeJs.toByteArray(), android.util.Base64.NO_WRAP)
+        val b64 = java.util.Base64.getEncoder().encodeToString(bridgeJs.toByteArray())
         val d = "$"
         return listOf(
             "pkg update -y && pkg install -y proot-distro",
@@ -158,7 +157,7 @@ object ClaudeBridge {
 
     /** Command for a computer (macOS / Linux / WSL / Git Bash) with Node.js. */
     fun pcInstallCommand(bridgeJs: String, token: String): String {
-        val b64 = android.util.Base64.encodeToString(bridgeJs.toByteArray(), android.util.Base64.NO_WRAP)
+        val b64 = java.util.Base64.getEncoder().encodeToString(bridgeJs.toByteArray())
         return "npm install -g @anthropic-ai/claude-code && echo '$b64' | base64 -d > ultracode-bridge.js && " +
             "echo 'Готово! 1) claude — войдите в аккаунт  2) node ultracode-bridge.js --lan --token $token'"
     }
