@@ -1,0 +1,333 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>UltraCode</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700&family=Roboto+Flex:opsz,wght@8..144,400;8..144,500;8..144,600&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+/* Layout: one centered column — hero with the recommended download, platform grid, features, Android install steps.
+   Color: Material You tonal palette built from one seed hue (--h); the chips under the hero change the seed, like dynamic color. */
+:root{
+  --h: 285;
+  --bg: oklch(0.985 0.012 var(--h));
+  --surface: oklch(0.965 0.018 var(--h));
+  --surface-hi: oklch(0.935 0.026 var(--h));
+  --on-surface: oklch(0.22 0.02 var(--h));
+  --muted: oklch(0.45 0.03 var(--h));
+  --outline: oklch(0.82 0.03 var(--h));
+  --primary: oklch(0.46 0.13 var(--h));
+  --on-primary: oklch(0.99 0.01 var(--h));
+  --primary-c: oklch(0.90 0.06 var(--h));
+  --on-primary-c: oklch(0.28 0.10 var(--h));
+  --tertiary-c: oklch(0.91 0.05 calc(var(--h) + 70));
+  --on-tertiary-c: oklch(0.30 0.08 calc(var(--h) + 70));
+  --font-display: "Outfit", "Segoe UI", system-ui, sans-serif;
+  --font-body: "Roboto Flex", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "Cascadia Mono", monospace;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg: oklch(0.17 0.012 var(--h)); --surface: oklch(0.21 0.016 var(--h)); --surface-hi: oklch(0.26 0.022 var(--h));
+  --on-surface: oklch(0.93 0.015 var(--h)); --muted: oklch(0.74 0.025 var(--h)); --outline: oklch(0.38 0.03 var(--h));
+  --primary: oklch(0.82 0.10 var(--h)); --on-primary: oklch(0.25 0.09 var(--h));
+  --primary-c: oklch(0.34 0.09 var(--h)); --on-primary-c: oklch(0.92 0.05 var(--h));
+  --tertiary-c: oklch(0.33 0.06 calc(var(--h) + 70)); --on-tertiary-c: oklch(0.92 0.04 calc(var(--h) + 70));
+  color-scheme: dark } }
+:root[data-theme="dark"]{
+  --bg: oklch(0.17 0.012 var(--h)); --surface: oklch(0.21 0.016 var(--h)); --surface-hi: oklch(0.26 0.022 var(--h));
+  --on-surface: oklch(0.93 0.015 var(--h)); --muted: oklch(0.74 0.025 var(--h)); --outline: oklch(0.38 0.03 var(--h));
+  --primary: oklch(0.82 0.10 var(--h)); --on-primary: oklch(0.25 0.09 var(--h));
+  --primary-c: oklch(0.34 0.09 var(--h)); --on-primary-c: oklch(0.92 0.05 var(--h));
+  --tertiary-c: oklch(0.33 0.06 calc(var(--h) + 70)); --on-tertiary-c: oklch(0.92 0.04 calc(var(--h) + 70));
+  color-scheme: dark }
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--on-surface);font-family:var(--font-body);font-size:16px;line-height:1.55;
+  padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right:max(16px, env(safe-area-inset-right, 0px));
+  transition:background .4s, color .4s}
+main{max-width:1080px;margin:0 auto;padding-block:40px 64px;display:grid;gap:72px}
+h1,h2,h3{font-family:var(--font-display);text-wrap:balance;margin:0;letter-spacing:-0.01em}
+p{margin:0}
+a{color:inherit}
+:focus-visible{outline:3px solid var(--primary);outline-offset:3px;border-radius:12px}
+.cookie{display:block;fill:currentColor}
+
+/* hero */
+.hero{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:40px;align-items:center}
+.brand{display:flex;align-items:center;gap:14px;margin-bottom:28px}
+.brand-mark{position:relative;width:52px;height:52px;color:var(--primary)}
+.brand-mark svg.glyph{position:absolute;inset:0;margin:auto;width:26px;height:26px;color:var(--on-primary)}
+.brand b{font-family:var(--font-display);font-size:1.5rem;font-weight:600}
+.hero h1{font-size:clamp(2.3rem,5.4vw,3.8rem);line-height:1.05;font-weight:700}
+.hero h1 em{font-style:normal;color:var(--primary)}
+.lead{margin-top:18px;font-size:1.15rem;color:var(--muted);max-width:34rem}
+.cta{margin-top:30px;display:flex;flex-wrap:wrap;align-items:center;gap:12px 18px}
+.btn{display:inline-flex;align-items:center;gap:12px;border:0;cursor:pointer;text-decoration:none;font:600 1.05rem/1 var(--font-body);
+  border-radius:999px;padding:18px 28px 18px 22px;transition:transform .2s cubic-bezier(.2,.9,.3,1.3), border-radius .3s, box-shadow .2s}
+.btn-primary{background:var(--primary);color:var(--on-primary);box-shadow:0 1px 2px oklch(0 0 0 / .15)}
+.btn-primary:hover{border-radius:22px;box-shadow:0 6px 18px oklch(0.4 0.1 var(--h) / .25)}
+.btn:active{transform:scale(.96)}
+.btn svg{width:22px;height:22px;flex:none}
+.btn small{display:block;font-weight:500;font-size:.8rem;opacity:.85;margin-top:4px}
+.cta .sub{color:var(--muted);font-size:.95rem}
+.cta .sub a{color:var(--primary);font-weight:600}
+.seeds{margin-top:34px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.seeds span{font-size:.85rem;color:var(--muted);margin-right:4px}
+.seed{width:34px;height:34px;border-radius:50%;border:2px solid transparent;cursor:pointer;padding:0;
+  background:oklch(0.62 0.15 var(--sh));transition:transform .2s, border-radius .3s}
+.seed[aria-pressed="true"]{border-color:var(--on-surface);border-radius:12px}
+.seed:hover{transform:scale(1.1)}
+
+/* phone mock in the hero */
+.phone{justify-self:center;width:min(100%,330px);aspect-ratio:9/17;max-width:100%;border-radius:44px;background:var(--surface);
+  border:10px solid var(--surface-hi);padding:18px 14px;display:flex;flex-direction:column;gap:12px;overflow:hidden;
+  box-shadow:0 24px 60px oklch(0.3 0.08 var(--h) / .18)}
+.ph-top{display:flex;align-items:center;gap:8px}
+.ph-chip{font-size:.72rem;font-weight:600;background:var(--primary-c);color:var(--on-primary-c);padding:6px 10px;border-radius:999px;white-space:nowrap}
+.ph-chip.alt{background:transparent;border:1px solid var(--outline);color:var(--muted)}
+.bubble{max-width:85%;padding:10px 13px;border-radius:20px;font-size:.82rem;line-height:1.4}
+.bubble.me{align-self:flex-end;background:var(--primary-c);color:var(--on-primary-c);border-bottom-right-radius:6px}
+.bubble.ai{background:var(--bg);border:1px solid var(--outline)}
+.ai-head{display:flex;align-items:center;gap:6px;font-size:.72rem;font-weight:600}
+.ai-head i{width:16px;height:16px;color:var(--on-tertiary-c);display:block}
+.ph-code{font-family:var(--font-mono);font-size:.7rem;background:var(--surface-hi);border-radius:14px;padding:10px 12px;color:var(--on-surface);white-space:pre;overflow:hidden}
+.ph-run{align-self:flex-start;font-size:.72rem;font-weight:600;background:var(--primary);color:var(--on-primary);padding:7px 12px;border-radius:999px}
+.ph-input{margin-top:auto;display:flex;align-items:center;gap:8px;background:var(--surface-hi);border-radius:999px;padding:6px 6px 6px 14px;font-size:.75rem;color:var(--muted)}
+.ph-input i{margin-left:auto;width:32px;height:32px;color:var(--primary);display:block}
+
+/* sections */
+.sec-head{display:grid;gap:10px;margin-bottom:26px;max-width:42rem}
+.eyebrow{font-size:.8rem;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--primary)}
+.sec-head h2{font-size:clamp(1.7rem,3.4vw,2.4rem);font-weight:600}
+.sec-head p{color:var(--muted)}
+
+.platforms{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
+.plat{background:var(--surface);border-radius:28px;padding:22px;display:flex;flex-direction:column;gap:14px;min-width:0;
+  border:2px solid transparent;transition:border-color .3s, border-radius .3s}
+.plat.you{border-color:var(--primary);border-radius:36px}
+.plat .icon{position:relative;width:56px;height:56px;color:var(--primary-c)}
+.plat .icon svg.glyph{position:absolute;inset:0;margin:auto;width:26px;height:26px;color:var(--on-primary-c)}
+.plat h3{font-size:1.3rem;font-weight:600}
+.plat .meta{font-size:.88rem;color:var(--muted);min-height:3.1em}
+.files{display:grid;gap:8px;margin-top:auto}
+.file{display:flex;align-items:center;justify-content:space-between;gap:10px;text-decoration:none;background:var(--surface-hi);
+  border-radius:16px;padding:12px 14px;font-weight:600;font-size:.92rem;transition:background .2s, border-radius .3s}
+.file:hover{background:var(--primary-c);color:var(--on-primary-c);border-radius:22px}
+.file code{font-family:var(--font-mono);font-size:.78rem;font-weight:500;color:var(--muted)}
+.file:hover code{color:inherit}
+.you-tag{align-self:flex-start;font-size:.75rem;font-weight:600;background:var(--primary);color:var(--on-primary);padding:4px 10px;border-radius:999px}
+
+.features{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.feat{background:var(--surface);border-radius:24px;padding:22px;display:grid;gap:8px;align-content:start;min-width:0}
+.feat:nth-child(3n+2){background:var(--primary-c);color:var(--on-primary-c)}
+.feat:nth-child(3n+2) p{color:inherit;opacity:.85}
+.feat h3{font-size:1.12rem;font-weight:600}
+.feat p{color:var(--muted);font-size:.95rem}
+.feat .k{font-family:var(--font-mono);font-size:.78rem;background:var(--surface-hi);color:var(--on-surface);border-radius:8px;padding:2px 7px}
+
+.steps{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;counter-reset:s;list-style:none;padding:0;margin:0}
+.steps li{counter-increment:s;background:var(--surface);border-radius:24px;padding:22px 22px 22px 22px;display:grid;gap:8px;min-width:0}
+.steps li::before{content:counter(s);display:grid;place-items:center;width:40px;height:40px;border-radius:14px;
+  background:var(--tertiary-c);color:var(--on-tertiary-c);font:700 1.1rem var(--font-display)}
+.steps h3{font-size:1.05rem;font-weight:600}
+.steps p{color:var(--muted);font-size:.93rem}
+
+footer{display:flex;flex-wrap:wrap;justify-content:space-between;gap:12px;color:var(--muted);font-size:.9rem;
+  border-top:1px solid var(--outline);padding-top:22px}
+footer a{color:var(--primary);font-weight:600}
+
+@media (max-width:900px){
+  .hero{grid-template-columns:1fr}
+  .phone{width:min(100%,300px)}
+  .platforms{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .features,.steps{grid-template-columns:1fr 1fr}
+}
+@media (max-width:560px){
+  main{gap:56px;padding-block:24px 48px}
+  .platforms,.features,.steps{grid-template-columns:1fr}
+  .btn{width:100%;justify-content:center}
+}
+@media (prefers-reduced-motion: reduce){ *{transition:none!important} }
+</style>
+</head>
+<body>
+
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <path id="c9" d="M50.0,0.0 L52.2,0.3 L54.3,1.3 L56.2,2.7 L58.0,4.5 L59.7,6.2 L61.3,7.9 L62.9,9.2 L64.5,10.1 L66.4,10.5 L68.4,10.5 L70.7,10.2 L73.1,9.9 L75.6,9.8 L78.0,9.9 L80.3,10.6 L82.1,11.7 L83.6,13.3 L84.6,15.4 L85.2,17.8 L85.4,20.3 L85.6,22.7 L85.7,25.0 L86.1,27.0 L86.8,28.8 L88.0,30.2 L89.5,31.6 L91.4,32.9 L93.5,34.2 L95.5,35.7 L97.2,37.3 L98.5,39.2 L99.2,41.3 L99.3,43.5 L98.7,45.7 L97.6,47.9 L96.2,50.0 L94.8,52.0 L93.4,53.8 L92.4,55.6 L91.9,57.4 L91.8,59.3 L92.1,61.3 L92.7,63.5 L93.5,65.8 L94.1,68.2 L94.3,70.7 L94.1,73.0 L93.3,75.0 L91.9,76.7 L90.1,78.0 L87.8,79.0 L85.4,79.7 L83.0,80.3 L80.8,80.8 L78.9,81.5 L77.3,82.6 L76.0,83.9 L75.0,85.7 L74.1,87.8 L73.1,90.1 L72.0,92.3 L70.7,94.3 L69.0,95.9 L67.1,97.0 L64.9,97.4 L62.7,97.2 L60.3,96.6 L58.0,95.5 L55.8,94.4 L53.8,93.4 L51.9,92.7 L50.0,92.5 L48.1,92.7 L46.2,93.4 L44.2,94.4 L42.0,95.5 L39.7,96.6 L37.3,97.2 L35.1,97.4 L32.9,97.0 L31.0,95.9 L29.3,94.3 L28.0,92.3 L26.9,90.1 L25.9,87.8 L25.0,85.7 L24.0,83.9 L22.7,82.6 L21.1,81.5 L19.2,80.8 L17.0,80.3 L14.6,79.7 L12.2,79.0 L9.9,78.0 L8.1,76.7 L6.7,75.0 L5.9,73.0 L5.7,70.7 L5.9,68.2 L6.5,65.8 L7.3,63.5 L7.9,61.3 L8.2,59.3 L8.1,57.4 L7.6,55.6 L6.6,53.8 L5.2,52.0 L3.8,50.0 L2.4,47.9 L1.3,45.7 L0.7,43.5 L0.8,41.3 L1.5,39.2 L2.8,37.3 L4.5,35.7 L6.5,34.2 L8.6,32.9 L10.5,31.6 L12.0,30.2 L13.2,28.8 L13.9,27.0 L14.3,25.0 L14.4,22.7 L14.6,20.3 L14.8,17.8 L15.4,15.4 L16.4,13.3 L17.9,11.7 L19.7,10.6 L22.0,9.9 L24.4,9.8 L26.9,9.9 L29.3,10.2 L31.6,10.5 L33.6,10.5 L35.5,10.1 L37.1,9.2 L38.7,7.9 L40.3,6.2 L42.0,4.5 L43.8,2.7 L45.7,1.3 L47.8,0.3Z"/>
+    <path id="c6" d="M50.0,0.0 L52.6,0.3 L55.1,1.1 L57.5,2.4 L59.7,4.1 L61.8,6.1 L63.6,8.0 L65.4,10.0 L67.0,11.8 L68.7,13.3 L70.5,14.5 L72.5,15.4 L74.6,16.1 L77.0,16.7 L79.5,17.2 L82.2,17.8 L84.8,18.6 L87.4,19.7 L89.8,21.1 L91.7,22.9 L93.3,25.0 L94.4,27.4 L94.9,30.0 L94.9,32.7 L94.6,35.5 L93.9,38.2 L93.1,40.8 L92.3,43.3 L91.6,45.6 L91.2,47.8 L91.0,50.0 L91.2,52.2 L91.6,54.4 L92.3,56.7 L93.1,59.2 L93.9,61.8 L94.6,64.5 L94.9,67.3 L94.9,70.0 L94.4,72.6 L93.3,75.0 L91.7,77.1 L89.8,78.9 L87.4,80.3 L84.8,81.4 L82.2,82.2 L79.5,82.8 L77.0,83.3 L74.6,83.9 L72.5,84.6 L70.5,85.5 L68.7,86.7 L67.0,88.2 L65.4,90.0 L63.6,92.0 L61.8,93.9 L59.7,95.9 L57.5,97.6 L55.1,98.9 L52.6,99.7 L50.0,100.0 L47.4,99.7 L44.9,98.9 L42.5,97.6 L40.3,95.9 L38.2,93.9 L36.4,92.0 L34.6,90.0 L33.0,88.2 L31.3,86.7 L29.5,85.5 L27.5,84.6 L25.4,83.9 L23.0,83.3 L20.5,82.8 L17.8,82.2 L15.2,81.4 L12.6,80.3 L10.2,78.9 L8.3,77.1 L6.7,75.0 L5.6,72.6 L5.1,70.0 L5.1,67.3 L5.4,64.5 L6.1,61.8 L6.9,59.2 L7.7,56.7 L8.4,54.4 L8.8,52.2 L9.0,50.0 L8.8,47.8 L8.4,45.6 L7.7,43.3 L6.9,40.8 L6.1,38.2 L5.4,35.5 L5.1,32.7 L5.1,30.0 L5.6,27.4 L6.7,25.0 L8.3,22.9 L10.2,21.1 L12.6,19.7 L15.2,18.6 L17.8,17.8 L20.5,17.2 L23.0,16.7 L25.4,16.1 L27.5,15.4 L29.5,14.5 L31.3,13.3 L33.0,11.8 L34.6,10.0 L36.4,8.0 L38.2,6.1 L40.3,4.1 L42.5,2.4 L44.9,1.1 L47.4,0.3Z"/>
+  </defs>
+</svg>
+
+<main>
+  <section class="hero" aria-labelledby="t">
+    <div>
+      <div class="brand">
+        <span class="brand-mark">
+          <svg class="cookie" viewBox="0 0 100 100" aria-hidden="true"><use href="#c9"/></svg>
+          <svg class="glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 7l-5 5 5 5M16 7l5 5-5 5M14 4l-4 16"/></svg>
+        </span>
+        <b>UltraCode</b>
+      </div>
+      <h1 id="t">ИИ-помощник, который <em>сам пишет код</em> и собирает приложения</h1>
+      <p class="lead">Чат с нейросетями, Claude Code по подписке, бесплатные модели, GitHub, терминал и Python. На телефоне и на компьютере.</p>
+      <div class="cta">
+        <a class="btn btn-primary" id="mainBtn" href="https://github.com/keysliong/UltraCode/releases/download/android-latest/UltraCode.apk" target="_blank" rel="noopener">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11m0 0l-4.5-4.5M12 15l4.5-4.5M5 20h14"/></svg>
+          <span><span id="mainLabel">Скачать для Android</span><small id="mainFile">UltraCode.apk · бесплатно</small></span>
+        </a>
+        <p class="sub">Другая система? <a href="#download">Все версии ниже</a></p>
+      </div>
+      <div class="seeds" role="group" aria-label="Цвет страницы">
+        <span>Цвет, как в Material You:</span>
+        <button class="seed" style="--sh:285" data-h="285" aria-label="Фиолетовый" aria-pressed="true"></button>
+        <button class="seed" style="--sh:230" data-h="230" aria-label="Синий" aria-pressed="false"></button>
+        <button class="seed" style="--sh:155" data-h="155" aria-label="Зелёный" aria-pressed="false"></button>
+        <button class="seed" style="--sh:40" data-h="40" aria-label="Оранжевый" aria-pressed="false"></button>
+        <button class="seed" style="--sh:350" data-h="350" aria-label="Розовый" aria-pressed="false"></button>
+      </div>
+    </div>
+
+    <div class="phone" aria-label="Пример экрана приложения" role="img">
+      <div class="ph-top">
+        <span class="ph-chip">qwen3-coder · free</span>
+        <span class="ph-chip alt">Агент</span>
+      </div>
+      <div class="bubble me">Посчитай, сколько дней до Нового года</div>
+      <div class="bubble ai">
+        <div class="ai-head"><i style="color:var(--tertiary-c)"><svg class="cookie" viewBox="0 0 100 100"><use href="#c9"/></svg></i>qwen3-coder</div>
+        <p style="margin-top:6px">Посчитаю на Python:</p>
+      </div>
+      <div class="ph-code">from datetime import date
+d = date(2027,1,1) - date.today()
+print(d.days, "дн.")</div>
+      <span class="ph-run">▶ Запустить</span>
+      <div class="ph-code">39 дн.</div>
+      <div class="ph-input">Спроси что угодно…<i><svg class="cookie" viewBox="0 0 100 100"><use href="#c9"/></svg></i></div>
+    </div>
+  </section>
+
+  <section id="download" aria-labelledby="d">
+    <div class="sec-head">
+      <span class="eyebrow">Скачать</span>
+      <h2 id="d">Выберите свою систему</h2>
+      <p>Всегда последняя версия. Сборки выходят автоматически после каждого обновления.</p>
+    </div>
+    <div class="platforms">
+      <article class="plat" data-os="android">
+        <span class="icon"><svg class="cookie" viewBox="0 0 100 100" aria-hidden="true"><use href="#c6"/></svg>
+          <svg class="glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="6.5" y="2.5" width="11" height="19" rx="2.5"/><path d="M10.5 18.5h3"/></svg></span>
+        <h3>Android</h3>
+        <p class="meta">Android 8 и новее. Встроенный Claude Code, терминал и Python.</p>
+        <div class="files">
+          <a class="file" href="https://github.com/keysliong/UltraCode/releases/download/android-latest/UltraCode.apk" target="_blank" rel="noopener">Скачать APK <code>.apk</code></a>
+        </div>
+      </article>
+      <article class="plat" data-os="windows">
+        <span class="icon"><svg class="cookie" viewBox="0 0 100 100" aria-hidden="true"><use href="#c6"/></svg>
+          <svg class="glyph" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="3.5" y="3.5" width="7.6" height="7.6" rx="1.4"/><rect x="12.9" y="3.5" width="7.6" height="7.6" rx="1.4"/><rect x="3.5" y="12.9" width="7.6" height="7.6" rx="1.4"/><rect x="12.9" y="12.9" width="7.6" height="7.6" rx="1.4"/></svg></span>
+        <h3>Windows</h3>
+        <p class="meta">Windows 10 и 11. Установщик без прав администратора.</p>
+        <div class="files">
+          <a class="file" href="https://github.com/keysliong/UltraCode/releases/download/desktop-latest/UltraCode-Setup.exe" target="_blank" rel="noopener">Установщик <code>.exe</code></a>
+          <a class="file" href="https://github.com/keysliong/UltraCode/releases/download/desktop-latest/UltraCode.msi" target="_blank" rel="noopener">Пакет MSI <code>.msi</code></a>
+        </div>
+      </article>
+      <article class="plat" data-os="mac">
+        <span class="icon"><svg class="cookie" viewBox="0 0 100 100" aria-hidden="true"><use href="#c6"/></svg>
+          <svg class="glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="5" width="16" height="11" rx="2"/><path d="M2.5 19.5h19"/></svg></span>
+        <h3>macOS</h3>
+        <p class="meta">При первом запуске: правый клик по приложению → «Открыть».</p>
+        <div class="files">
+          <a class="file" href="https://github.com/keysliong/UltraCode/releases/download/desktop-latest/UltraCode.dmg" target="_blank" rel="noopener">Образ диска <code>.dmg</code></a>
+        </div>
+      </article>
+      <article class="plat" data-os="linux">
+        <span class="icon"><svg class="cookie" viewBox="0 0 100 100" aria-hidden="true"><use href="#c6"/></svg>
+          <svg class="glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4.5" width="18" height="15" rx="2.5"/><path d="M7 10l3 2.5L7 15M12.5 15H17"/></svg></span>
+        <h3>Linux</h3>
+        <p class="meta">Ubuntu, Debian, Mint и другие системы с пакетами .deb.</p>
+        <div class="files">
+          <a class="file" href="https://github.com/keysliong/UltraCode/releases/download/desktop-latest/UltraCode.deb" target="_blank" rel="noopener">Пакет DEB <code>.deb</code></a>
+        </div>
+      </article>
+    </div>
+  </section>
+
+  <section aria-labelledby="f">
+    <div class="sec-head">
+      <span class="eyebrow">Возможности</span>
+      <h2 id="f">Всё для работы с ИИ в одном приложении</h2>
+    </div>
+    <div class="features">
+      <div class="feat"><h3>Бесплатные модели</h3><p>DeepSeek, GLM, Qwen Coder, Kimi, GPT-OSS через OpenRouter и Groq. Перегруженная модель заменяется сама.</p></div>
+      <div class="feat"><h3>Claude Code по подписке</h3><p>Официальный Claude Code внутри приложения. Вход в свой аккаунт Claude Pro или Max.</p></div>
+      <div class="feat"><h3>Агент и GitHub</h3><p>Создаёт репозитории, пишет код, публикует сайты на GitHub Pages и собирает APK и EXE через Actions.</p></div>
+      <div class="feat"><h3>Python и терминал</h3><p>Кнопка «Запустить» под кодом и встроенный терминал: <span class="k">python</span>, <span class="k">pip install</span>.</p></div>
+      <div class="feat"><h3>Сайты прямо в чате</h3><p>HTML из ответа открывается в окне предпросмотра. Видно, какие сайты читала нейросеть.</p></div>
+      <div class="feat"><h3>Свои нейросети</h3><p>Любой API в формате OpenAI или Anthropic: DeepSeek, Gemini, Mistral, Ollama на своём ПК.</p></div>
+    </div>
+  </section>
+
+  <section aria-labelledby="i">
+    <div class="sec-head">
+      <span class="eyebrow">Установка на Android</span>
+      <h2 id="i">Три шага до первого запуска</h2>
+    </div>
+    <ol class="steps">
+      <li><h3>Скачайте APK</h3><p>Нажмите «Скачать APK». Файл UltraCode.apk сохранится в «Загрузки».</p></li>
+      <li><h3>Разрешите установку</h3><p>Откройте файл. Если телефон спросит, разрешите установку из этого источника.</p></li>
+      <li><h3>Подключите модели</h3><p>В настройках вставьте бесплатный ключ OpenRouter или Groq, или войдите в Claude.</p></li>
+    </ol>
+  </section>
+
+  <footer>
+    <span>UltraCode · Material You · кнопки в форме «печенек»</span>
+    <a href="https://github.com/keysliong/UltraCode/releases" target="_blank" rel="noopener">Все версии и история изменений</a>
+  </footer>
+</main>
+
+<script>
+(() => {
+  const ua = navigator.userAgent || "";
+  const os = /Android/i.test(ua) ? "android" : /Windows/i.test(ua) ? "windows"
+    : /Mac OS X|Macintosh/i.test(ua) && !/iPhone|iPad/i.test(ua) ? "mac" : /Linux|X11/i.test(ua) ? "linux" : "android";
+  const map = {
+    android: ["Скачать для Android", "UltraCode.apk · бесплатно", "android-latest/UltraCode.apk"],
+    windows: ["Скачать для Windows", "UltraCode-Setup.exe · бесплатно", "desktop-latest/UltraCode-Setup.exe"],
+    mac: ["Скачать для macOS", "UltraCode.dmg · бесплатно", "desktop-latest/UltraCode.dmg"],
+    linux: ["Скачать для Linux", "UltraCode.deb · бесплатно", "desktop-latest/UltraCode.deb"],
+  };
+  const [label, file, path] = map[os];
+  document.getElementById("mainLabel").textContent = label;
+  document.getElementById("mainFile").textContent = file;
+  document.getElementById("mainBtn").href = "https://github.com/keysliong/UltraCode/releases/download/" + path;
+  const card = document.querySelector('.plat[data-os="' + os + '"]');
+  if (card) {
+    card.classList.add("you");
+    const tag = document.createElement("span");
+    tag.className = "you-tag"; tag.textContent = "Ваша система";
+    card.insertBefore(tag, card.querySelector("h3"));
+  }
+
+  // Material You "dynamic color": change the seed hue of the whole palette.
+  const seeds = document.querySelectorAll(".seed");
+  const apply = (h) => {
+    document.documentElement.style.setProperty("--h", h);
+    seeds.forEach(s => s.setAttribute("aria-pressed", String(s.dataset.h === String(h))));
+  };
+  let saved = null;
+  try { saved = localStorage.getItem("ultracode-seed"); } catch (e) {}
+  if (saved) apply(saved);
+  seeds.forEach(s => s.addEventListener("click", () => {
+    apply(s.dataset.h);
+    try { localStorage.setItem("ultracode-seed", s.dataset.h); } catch (e) {}
+  }));
+})();
+</script>
+
+</body>
+</html>

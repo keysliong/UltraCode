@@ -86,3 +86,21 @@ jobs:
             - **Linux (Ubuntu/Debian)**: `ultracode_*.deb`
           files: dist/*
           make_latest: false
+
+      - name: Stable file names
+        run: |
+          mkdir -p stable
+          cp dist/UltraCode-Setup-*.exe stable/UltraCode-Setup.exe
+          cp dist/UltraCode-*.msi stable/UltraCode.msi
+          cp dist/UltraCode-*.dmg stable/UltraCode.dmg
+          cp dist/ultracode_*.deb stable/UltraCode.deb
+          ls -la stable
+
+      - name: Stable download links (desktop-latest)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: desktop-latest
+          name: UltraCode для компьютера (последняя версия)
+          make_latest: false
+          body: Всегда последняя сборка UltraCode для Windows, macOS и Linux.
+          files: stable/*

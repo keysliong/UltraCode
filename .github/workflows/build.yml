@@ -73,3 +73,12 @@ jobs:
             Сборка UltraCode из ветки `${{ github.ref_name }}`.
             Скачай **UltraCode.apk** ниже и установи на телефон.
           files: UltraCode.apk
+
+      - name: Stable download link (android-latest)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: android-latest
+          name: UltraCode для Android (последняя версия)
+          make_latest: false
+          body: Всегда последняя сборка UltraCode для Android. Файл UltraCode.apk.
+          files: UltraCode.apk
