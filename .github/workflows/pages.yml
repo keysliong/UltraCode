@@ -1,7 +1,5 @@
-name: Update site (GitHub Pages)
+name: Deploy site (GitHub Pages)
 
-# Pages is set to "Deploy from branch" (root). Pushes made by apps don't start a Pages build,
-# so this workflow requests one explicitly whenever the site changes.
 on:
   push:
     branches: [ccr-1ee23877-cc5vrz]
@@ -14,19 +12,24 @@ on:
 permissions:
   contents: read
   pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
 
 jobs:
-  request-build:
+  deploy:
     runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
     steps:
-      - name: Request a GitHub Pages build
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          curl -fsS -X POST \
-            -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" \
-            "https://api.github.com/repos/${{ github.repository }}/pages/builds"
-          echo
-          sleep 45
-          curl -fsS -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" \
-            "https://api.github.com/repos/${{ github.repository }}/pages/builds/latest"
+      - uses: actions/checkout@v4
+      - name: Prepare site
+        run: mkdir -p _site && cp site/index.html _site/index.html && touch _site/.nojekyll
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deploy
+        uses: actions/deploy-pages@v4
