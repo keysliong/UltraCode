@@ -1,11 +1,8 @@
 name: Deploy site (GitHub Pages)
 
+# Pages is set to "Deploy from branch": the site is served from index.html in the repo root.
+# This workflow is only needed if the Pages source is switched to "GitHub Actions".
 on:
-  push:
-    branches: [ccr-1ee23877-cc5vrz]
-    paths:
-      - 'site/**'
-      - '.github/workflows/pages.yml'
   workflow_dispatch:
 
 permissions:
